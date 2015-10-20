@@ -1,0 +1,18 @@
+
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="urn:hrsolutions:successfactors:1.0" targetNamespace="urn:hrsolutions:successfactors:1.0">
+   <xsd:complexType name="SFObject_GoalMetricLookup">
+      <xsd:sequence>
+         <xsd:element name="id" type="xsd:string" minOccurs="0" />
+         <xsd:element name="businessKeys" type="xsd:string" minOccurs="0" />
+         <xsd:element name="type" type="xsd:string" />
+         <xsd:element name="subguid" type="xsd:string" minOccurs="0" />
+         <xsd:element name="goalId" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="masterId" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="lastModified" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="displayOrder" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="rating" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="achievement" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="description" type="xsd:string" minOccurs="0"/>
+      </xsd:sequence>
+   </xsd:complexType>
+</xsd:schema>

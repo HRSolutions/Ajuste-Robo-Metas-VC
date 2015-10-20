@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema targetNamespace="urn:sfobject.sfapi.successfactors.com" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="urn:sfobject.sfapi.successfactors.com">
+   <xsd:element name="queryResponse">
+      <xsd:complexType>
+         <xsd:sequence>
+            <xsd:element name="result" type="QueryResult" form="qualified"/>
+         </xsd:sequence>
+      </xsd:complexType>
+   </xsd:element>
+   <xsd:complexType name="SFObject">
+      <xsd:sequence>
+         <xsd:choice minOccurs="0">
+            <xsd:element name="id" type="xsd:string" minOccurs="0" form="qualified"/>
+            <xsd:element name="businessKeys" type="BusinessKeys" minOccurs="0" form="qualified"/>
+         </xsd:choice>
+         <xsd:element name="type" type="xsd:string" form="qualified"/>
+         <xsd:element name="guid" type="xsd:string" form="qualified"/>
+         <xsd:element name="masterId" type="xsd:string" form="qualified"/>
+         <xsd:element name="lastModified" type="xsd:string" form="qualified"/>
+         <xsd:element name="modifier" type="xsd:string" form="qualified"/>
+         <xsd:element name="currentOwner" type="xsd:string" form="qualified"/>
+         <xsd:element name="numbering" type="xsd:string" form="qualified"/>
+         <xsd:element name="goalType" type="xsd:string" form="qualified"/>
+         <xsd:element name="flag" type="xsd:string" form="qualified"/>
+         <xsd:element name="parentId" type="xsd:string" form="qualified"/>
+         <xsd:element name="userId" type="xsd:string" form="qualified"/>
+         <xsd:element name="userName" type="xsd:string" form="qualified"/>
+         <xsd:element name="status" type="xsd:string" form="qualified"/>
+         <xsd:element name="dept" type="xsd:string" form="qualified"/>
+         <xsd:element name="div" type="xsd:string" form="qualified"/>
+         <xsd:element name="loc" type="xsd:string" form="qualified"/>
+         <xsd:element name="defGrp" type="xsd:string" form="qualified"/>
+         <xsd:element name="bizxLastStatusItemId" type="xsd:string" form="qualified"/>
+         <xsd:element name="bizxlastUpdateRequestId" type="xsd:string" form="qualified"/>
+         <xsd:element name="description" type="xsd:string" form="qualified"/>
+         <xsd:element name="library" type="xsd:string" form="qualified"/>
+         <xsd:element name="name" type="xsd:string" form="qualified"/>
+         <xsd:element name="field_desc" type="xsd:string" form="qualified"/>
+         <xsd:element name="weight" type="xsd:string" form="qualified"/>
+         <xsd:element name="metric" type="xsd:string" form="qualified"/>
+         <xsd:element name="actual_achievement" type="xsd:string" form="qualified"/>
+         <xsd:element name="rating" type="xsd:string" form="qualified"/>
+         <xsd:element name="goal_score" type="xsd:string" form="qualified"/>
+         <xsd:element name="bizx_target" type="xsd:string" form="qualified"/>
+         <xsd:element name="interpolacao" type="xsd:string" form="qualified"/>
+         <xsd:element name="bizx_actual" type="xsd:string" form="qualified"/>
+         <xsd:element name="category" type="xsd:string" form="qualified"/>
+         <xsd:element name="metricLookupAchievementType" type="xsd:string" form="qualified"/>
+         <xsd:element name="Fromlibrary" type="xsd:string" form="qualified"/>
+         <xsd:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+      </xsd:sequence>
+   </xsd:complexType>
+   <xsd:complexType name="QueryResult">
+      <xsd:sequence>
+         <xsd:element name="sfobject" type="SFObject" minOccurs="0" maxOccurs="unbounded" form="qualified"/>
+         <xsd:element name="numResults" type="xsd:int" form="qualified"/>
+         <xsd:element name="hasMore" type="xsd:boolean" form="qualified"/>
+         <xsd:element name="querySessionId" type="xsd:string" form="qualified" nillable="true"/>
+      </xsd:sequence>
+   </xsd:complexType>
+   <xsd:complexType name="BusinessKeys">
+      <xsd:sequence>
+         <xsd:any processContents="lax" maxOccurs="unbounded"/>
+      </xsd:sequence>
+   </xsd:complexType>
+</xsd:schema>

@@ -1,0 +1,42 @@
+
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="urn:hrsolutions:successfactors:1.0" targetNamespace="urn:hrsolutions:successfactors:1.0">
+   <xsd:complexType name="SFObject_Goal10">
+      <xsd:sequence>
+         <xsd:element name="id" type="xsd:string" minOccurs="0" />
+         <xsd:element name="businessKeys" type="xsd:string" minOccurs="0" />
+         <xsd:element name="type" type="xsd:string" />
+         <xsd:element name="guid" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="masterId" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="lastModified" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="modifier" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="currentOwner" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="numbering" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="goalType" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="flag" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="parentId" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="userId" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="userName" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="status" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="dept" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="div" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="loc" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="defGrp" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="bizxLastStatusItemId" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="bizxlastUpdateRequestId" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="description" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="library" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="name" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="field_desc" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="weight" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="metric" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="actual_achievement" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="rating" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="goal_score" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="bizx_target" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="interpolacao" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="bizx_actual" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="category" type="xsd:string" minOccurs="0"/>
+         <xsd:element name="metricLookupAchievementType" type="xsd:string" minOccurs="0"/>
+      </xsd:sequence>
+   </xsd:complexType>
+</xsd:schema>
