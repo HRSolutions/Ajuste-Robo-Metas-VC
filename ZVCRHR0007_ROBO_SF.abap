@@ -21,48 +21,48 @@
 *   05/10/2014 |           | E03K9XYPTT | Início do desenvolvimento      *
 *  ------------|-----------|------------|--------------------------------*
 *  ======================================================================*
-REPORT ZVCRHR0007_ROBO_SF.
+REPORT zvcrhr0007_robo_sf.
 
 *  ----------------------------------------------------------------------*
 *   Types                                                                *
 *  ----------------------------------------------------------------------*
-data : BEGIN OF y_goallibraryentry,
-      add TYPE string,
-      nome_tabela TYPE string,
-      guid TYPE string,
-      parent_guid TYPE string,
-      locale TYPE string,
-      name TYPE string,
-      metric TYPE string,
-      desc TYPE string,
-      start TYPE string,
-      due TYPE string,
-      done TYPE string,
-      category TYPE string,
-      weight TYPE string,
-      state TYPE string,
-      target_baseline TYPE string,
-      goto_url TYPE string,
-      rating TYPE string,
-      achievement TYPE string,
-      bizx_actual TYPE string,
-      bizx_target TYPE string,
-      bizx_pos TYPE string,
-      bizx_strategic TYPE string,
-      goal_score TYPE string,
-      runrate TYPE string,
-      runrate_forecast TYPE string,
-      proposed_runrate TYPE string,
-      fromlibrary TYPE string,
-      status TYPE string,
-      library TYPE string,
-      bizx_effort_spent TYPE string,
-      interpolacao TYPE string,
-      type TYPE string,
-      bizx_status_comments TYPE string,
-  END OF y_goallibraryentry.
+TYPES: BEGIN OF y_goallibraryentry,
+          add TYPE string,
+          nome_tabela TYPE string,
+          guid TYPE string,
+          parent_guid TYPE string,
+          locale TYPE string,
+          name TYPE string,
+          metric TYPE string,
+          desc TYPE string,
+          start TYPE string,
+          due TYPE string,
+          done TYPE string,
+          category TYPE string,
+          weight TYPE string,
+          state TYPE string,
+          target_baseline TYPE string,
+          goto_url TYPE string,
+          rating TYPE string,
+          achievement TYPE string,
+          bizx_actual TYPE string,
+          bizx_target TYPE string,
+          bizx_pos TYPE string,
+          bizx_strategic TYPE string,
+          goal_score TYPE string,
+          runrate TYPE string,
+          runrate_forecast TYPE string,
+          proposed_runrate TYPE string,
+          fromlibrary TYPE string,
+          status TYPE string,
+          library TYPE string,
+          bizx_effort_spent TYPE string,
+          interpolacao TYPE string,
+          type TYPE string,
+          bizx_status_comments TYPE string,
+  END OF y_goallibraryentry,
 
-DATA: BEGIN OF y_milestone,
+  BEGIN OF y_milestone,
        add TYPE string,
        nome_tabela TYPE string,
        guid TYPE string,
@@ -82,9 +82,9 @@ DATA: BEGIN OF y_milestone,
        score TYPE string,
        actualnumber TYPE string,
        resto TYPE string,
-  END OF y_milestone.
+  END OF y_milestone,
 
-DATA: BEGIN OF y_task,
+  BEGIN OF y_task,
       add TYPE string,
       nome_tabela TYPE string,
       guid TYPE string,
@@ -96,9 +96,9 @@ DATA: BEGIN OF y_task,
       start TYPE string,
       due TYPE string,
       done TYPE string ,
-  END OF y_task.
+  END OF y_task,
 
-DATA:BEGIN OF y_target,
+  BEGIN OF y_target,
     add TYPE string,
     nome_tabela TYPE string,
     guid TYPE string,
@@ -117,21 +117,21 @@ DATA:BEGIN OF y_target,
     rating TYPE string,
     score TYPE string,
     actualnumber TYPE string,
-  END OF y_target.
+  END OF y_target,
 
-DATA:BEGIN OF y_metriclookupentry OCCURS 0,
-  add TYPE string,
-  nome_tabela TYPE string,
-  guid TYPE string,
-  parent_guid TYPE string,
-  locale TYPE string,
-  description TYPE string,
-  rating TYPE string,
-  achievement TYPE string,
-  resto       TYPE string,
-  END OF y_metriclookupentry.
+  BEGIN OF y_metriclookupentry,
+    add TYPE string,
+    nome_tabela TYPE string,
+    guid TYPE string,
+    parent_guid TYPE string,
+    locale TYPE string,
+    description TYPE string,
+    rating TYPE string,
+    achievement TYPE string,
+    resto       TYPE string,
+  END OF y_metriclookupentry,
 
-DATA:BEGIN OF w_check OCCURS 0,
+  BEGIN OF y_check,
     campo1 TYPE string,
     campo2 TYPE string,
     campo3 TYPE string,
@@ -165,33 +165,34 @@ DATA:BEGIN OF w_check OCCURS 0,
     campo31 TYPE string,
     campo32 TYPE string,
     campo33 TYPE string,
-  END OF w_check.
+  END OF y_check,
 
-TYPES:BEGIN OF y_arquivo,
+  BEGIN OF y_arquivo,
       coluna TYPE string,
   END OF y_arquivo.
 
 *  ----------------------------------------------------------------------*
 *   Tabela Interna                                                       *
 *  ----------------------------------------------------------------------*
-DATA: T_goallibraryentry  TYPE TABLE OF y_goallibraryentry,
+DATA: t_goallibraryentry  TYPE TABLE OF y_goallibraryentry,
       t_milestone         TYPE TABLE OF y_milestone,
-      t_task              TYPE TABLE OF Y_TASK,
-      t_target            TYPE TABLE OF Y_MASK,
-      T_METRICLOOKUPENTRY TYPE TABLE OF y_metriclookupentry,
+      t_task              TYPE TABLE OF y_task,
+      t_target            TYPE TABLE OF y_target,
+      t_metriclookupentry TYPE TABLE OF y_metriclookupentry,
       t_files             TYPE filetable,
       t_outdata           TYPE STANDARD TABLE OF y_arquivo.
 
 *  ----------------------------------------------------------------------*
 *   Work Area                                                            *
 *  ----------------------------------------------------------------------*
-      DATA: W_goallibraryentry  TYPE y_goallibraryentry,
-            W_milestone         TYPE y_milestone,
-            W_task              TYPE Y_TASK,
-            W_target            TYPE Y_MASK,
-            W_METRICLOOKUPENTRY TYPE Ty_metriclookupentry,
-            w_files             TYPE file_table,
-            w_outdata           TYPE y_arquivo.
+DATA: w_goallibraryentry  TYPE y_goallibraryentry,
+      w_milestone         TYPE y_milestone,
+      w_task              TYPE y_task,
+      w_target            TYPE y_target,
+      w_metriclookupentry TYPE y_metriclookupentry,
+      w_files             TYPE file_table,
+      w_outdata           TYPE y_arquivo,
+      w_check             TYPE y_check.
 
 *  ----------------------------------------------------------------------*
 *   Variáveis                                                            *
@@ -298,9 +299,9 @@ ENDFORM.                    " ZF_CARREGAR_ARQUIVO
 *&---------------------------------------------------------------------*
 FORM zf_split_dados .
 
-  LOOP AT t_outdata INTO W_OUTDATA.
+  LOOP AT t_outdata INTO w_outdata.
 
-    SPLIT W_outdata-coluna AT p_deli INTO w_check-campo1
+    SPLIT w_outdata-coluna AT p_deli INTO w_check-campo1
                                        w_check-campo2
                                        w_check-campo3
                                        w_check-campo4
@@ -338,7 +339,7 @@ FORM zf_split_dados .
 
       CASE w_check-campo2.
         WHEN 'GoalLibraryEntry'.
-          SPLIT W_outdata-coluna AT p_deli INTO w_goallibraryentry-add
+          SPLIT w_outdata-coluna AT p_deli INTO w_goallibraryentry-add
                                              w_goallibraryentry-nome_tabela
                                              w_goallibraryentry-guid
                                              w_goallibraryentry-parent_guid
@@ -372,12 +373,12 @@ FORM zf_split_dados .
                                              w_goallibraryentry-type
                                              w_goallibraryentry-bizx_status_comments.
 
-          APPEND w_goallibraryentry to t_goallibraryentry.
+          APPEND w_goallibraryentry TO t_goallibraryentry.
           CLEAR w_goallibraryentry.
 
 
         WHEN 'Milestone'.
-          SPLIT W_outdata-coluna AT p_deli INTO w_milestone-add
+          SPLIT w_outdata-coluna AT p_deli INTO w_milestone-add
                                              w_milestone-nome_tabela
                                              w_milestone-guid
                                              w_milestone-parent_guid
@@ -395,7 +396,7 @@ FORM zf_split_dados .
                                              w_milestone-rating
                                              w_milestone-score
                                              w_milestone-actualnumber.
-          APPEND w_milestone to t_milestone.
+          APPEND w_milestone TO t_milestone.
           CLEAR w_milestone.
 
         WHEN 'Task'.
@@ -409,11 +410,11 @@ FORM zf_split_dados .
                                              w_task-desc
                                              w_task-start
                                              w_task-due.
-          APPEND w_task to t_task.
+          APPEND w_task TO t_task.
           CLEAR w_task.
 
         WHEN 'Target'.
-          SPLIT W_outdata-coluna AT p_deli INTO w_target-add
+          SPLIT w_outdata-coluna AT p_deli INTO w_target-add
                                              w_target-nome_tabela
                                              w_target-guid
                                              w_target-parent_guid
@@ -431,11 +432,11 @@ FORM zf_split_dados .
                                              w_target-rating
                                              w_target-score
                                              w_target-actualnumber.
-          APPEND w_target to t_target.
+          APPEND w_target TO t_target.
           CLEAR w_target.
 
         WHEN 'MetricLookupEntry'.
-          SPLIT t_outdata-coluna AT p_deli INTO w_metriclookupentry-add
+          SPLIT w_outdata-coluna AT p_deli INTO w_metriclookupentry-add
                                              w_metriclookupentry-nome_tabela
                                              w_metriclookupentry-guid
                                              w_metriclookupentry-parent_guid
@@ -444,7 +445,7 @@ FORM zf_split_dados .
                                              w_metriclookupentry-rating
                                              w_metriclookupentry-achievement.
 
-          APPEND w_metriclookupentry to t_metriclookupentry.
+          APPEND w_metriclookupentry TO t_metriclookupentry.
           CLEAR w_metriclookupentry.
 
         WHEN OTHERS.
