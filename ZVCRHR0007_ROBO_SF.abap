@@ -1,13 +1,31 @@
-*&---------------------------------------------------------------------*
-*& Report  ZVCRHR0007_ROBO_SF
-*&
-*&---------------------------------------------------------------------*
-*&
-*&
-*&---------------------------------------------------------------------*
-
+*  ======================================================================*
+*                                                                        *
+*                          HR Solutions Tecnologia                       *
+*                                                                        *
+*  ======================================================================*
+*   Empresa     : VOTORANTIM CIMENTOS                                    *
+*   ID          : xxxx                                                   *
+*   Programa    : ZVCRHR0007_ROBO_SF                                     *
+*   Tipo        : Interface Outbound                                     *
+*   Módulo      : HCM                                                    *
+*   Transação   : <Transação(ões) utilizada(s)>                          *
+*   Descrição   : Programa para carregar os resultados das metas no      *
+*                 no SuccessFactors usando WebService (SFAPI)            *
+*   Autor       : Fábrica HRST                                           *
+*   Data        : 05/10/2015                                             *
+*  ----------------------------------------------------------------------*
+*   Changes History                                                      *
+*  ----------------------------------------------------------------------*
+*   Data       | Autor     | Request    | Descrição                      *
+*  ------------|-----------|------------|--------------------------------*
+*   05/10/2014 |           | E03K9XYPTT | Início do desenvolvimento      *
+*  ------------|-----------|------------|--------------------------------*
+*  ======================================================================*
 REPORT ZVCRHR0007_ROBO_SF.
 
+*  ----------------------------------------------------------------------*
+*   Types                                                                *
+*  ----------------------------------------------------------------------*
 data : BEGIN OF y_goallibraryentry,
       add TYPE string,
       nome_tabela TYPE string,
@@ -153,35 +171,49 @@ TYPES:BEGIN OF y_arquivo,
       coluna TYPE string,
   END OF y_arquivo.
 
-DATA: t_outdata TYPE STANDARD TABLE OF y_arquivo.
-DATA: w_outdata TYPE ty_arquivo.
-DATA: lv_file TYPE string.
-
-DATA t_files TYPE filetable.
-DATA wa_files TYPE file_table.
-DATA v_rc     TYPE i.
-DATA v_linha TYPE string.
-
+*  ----------------------------------------------------------------------*
+*   Tabela Interna                                                       *
+*  ----------------------------------------------------------------------*
 DATA: T_goallibraryentry  TYPE TABLE OF y_goallibraryentry,
       t_milestone         TYPE TABLE OF y_milestone,
       t_task              TYPE TABLE OF Y_TASK,
       t_target            TYPE TABLE OF Y_MASK,
-      T_METRICLOOKUPENTRY TYPE TABLE OF y_metriclookupentry.
+      T_METRICLOOKUPENTRY TYPE TABLE OF y_metriclookupentry,
+      t_files             TYPE filetable,
+      t_outdata           TYPE STANDARD TABLE OF y_arquivo.
 
+*  ----------------------------------------------------------------------*
+*   Work Area                                                            *
+*  ----------------------------------------------------------------------*
       DATA: W_goallibraryentry  TYPE y_goallibraryentry,
             W_milestone         TYPE y_milestone,
             W_task              TYPE Y_TASK,
             W_target            TYPE Y_MASK,
-            W_METRICLOOKUPENTRY TYPE Ty_metriclookupentry.
+            W_METRICLOOKUPENTRY TYPE Ty_metriclookupentry,
+            w_files             TYPE file_table,
+            w_outdata           TYPE y_arquivo.
 
+*  ----------------------------------------------------------------------*
+*   Variáveis                                                            *
+*  ----------------------------------------------------------------------*
+DATA: v_rc    TYPE i,
+      v_linha TYPE string,
+      v_file  TYPE string.
+
+*  ----------------------------------------------------------------------*
+*   Tela de Seleção                                                      *
+*  ----------------------------------------------------------------------*
 PARAMETERS : p_file TYPE string DEFAULT 'C:\',
              p_deli TYPE c      DEFAULT ';'.
 
+*  ----------------------------------------------------------------------*
+*   At Selection-Screen                                                  *
+*  ----------------------------------------------------------------------*
 AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
 
   CALL METHOD cl_gui_frontend_services=>file_open_dialog
     CHANGING
-      file_table              = it_files
+      file_table              = t_files
       rc                      = v_rc
     EXCEPTIONS
       file_open_dialog_failed = 1
@@ -195,10 +227,13 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
                WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
   ELSE.
 
-    READ TABLE it_files INTO wa_files INDEX 1.
-    p_file = wa_files-filename.
+    READ TABLE t_files INTO w_files INDEX 1.
+    p_file = w_files-filename.
   ENDIF.
 
+*  ----------------------------------------------------------------------*
+*   Start-Of-Selection                                                   *
+*  ----------------------------------------------------------------------*
 START-OF-SELECTION.
 
   PERFORM zf_carregar_arquivo.
@@ -263,7 +298,6 @@ ENDFORM.                    " ZF_CARREGAR_ARQUIVO
 *&---------------------------------------------------------------------*
 FORM zf_split_dados .
 
-
   LOOP AT t_outdata INTO W_OUTDATA.
 
     SPLIT W_outdata-coluna AT p_deli INTO w_check-campo1
@@ -304,113 +338,114 @@ FORM zf_split_dados .
 
       CASE w_check-campo2.
         WHEN 'GoalLibraryEntry'.
-          SPLIT W_outdata-coluna AT p_deli INTO t_goallibraryentry-add
-                                             t_goallibraryentry-nome_tabela
-                                             t_goallibraryentry-guid
-                                             t_goallibraryentry-parent_guid
-                                             t_goallibraryentry-locale
-                                             t_goallibraryentry-name
-                                             t_goallibraryentry-metric
-                                             t_goallibraryentry-desc
-                                             t_goallibraryentry-start
-                                             t_goallibraryentry-due
-                                             t_goallibraryentry-done
-                                             t_goallibraryentry-category
-                                             t_goallibraryentry-weight
-                                             t_goallibraryentry-state
-                                             t_goallibraryentry-target_baseline
-                                             t_goallibraryentry-goto_url
-                                             t_goallibraryentry-rating
-                                             t_goallibraryentry-achievement
-                                             t_goallibraryentry-bizx_actual
-                                             t_goallibraryentry-bizx_target
-                                             t_goallibraryentry-bizx_pos
-                                             t_goallibraryentry-bizx_strategic
-                                             t_goallibraryentry-goal_score
-                                             t_goallibraryentry-runrate
-                                             t_goallibraryentry-runrate_forecast
-                                             t_goallibraryentry-proposed_runrate
-                                             t_goallibraryentry-fromlibrary
-                                             t_goallibraryentry-status
-                                             t_goallibraryentry-library
-                                             t_goallibraryentry-bizx_effort_spent
-                                             t_goallibraryentry-interpolacao
-                                             t_goallibraryentry-type
-                                             t_goallibraryentry-bizx_status_comments.
+          SPLIT W_outdata-coluna AT p_deli INTO w_goallibraryentry-add
+                                             w_goallibraryentry-nome_tabela
+                                             w_goallibraryentry-guid
+                                             w_goallibraryentry-parent_guid
+                                             w_goallibraryentry-locale
+                                             w_goallibraryentry-name
+                                             w_goallibraryentry-metric
+                                             w_goallibraryentry-desc
+                                             w_goallibraryentry-start
+                                             w_goallibraryentry-due
+                                             w_goallibraryentry-done
+                                             w_goallibraryentry-category
+                                             w_goallibraryentry-weight
+                                             w_goallibraryentry-state
+                                             w_goallibraryentry-target_baseline
+                                             w_goallibraryentry-goto_url
+                                             w_goallibraryentry-rating
+                                             w_goallibraryentry-achievement
+                                             w_goallibraryentry-bizx_actual
+                                             w_goallibraryentry-bizx_target
+                                             w_goallibraryentry-bizx_pos
+                                             w_goallibraryentry-bizx_strategic
+                                             w_goallibraryentry-goal_score
+                                             w_goallibraryentry-runrate
+                                             w_goallibraryentry-runrate_forecast
+                                             w_goallibraryentry-proposed_runrate
+                                             w_goallibraryentry-fromlibrary
+                                             w_goallibraryentry-status
+                                             w_goallibraryentry-library
+                                             w_goallibraryentry-bizx_effort_spent
+                                             w_goallibraryentry-interpolacao
+                                             w_goallibraryentry-type
+                                             w_goallibraryentry-bizx_status_comments.
 
-          APPEND t_goallibraryentry.
-          CLEAR t_goallibraryentry.
+          APPEND w_goallibraryentry to t_goallibraryentry.
+          CLEAR w_goallibraryentry.
 
 
         WHEN 'Milestone'.
-          SPLIT W_outdata-coluna AT p_deli INTO t_milestone-add
-                                             t_milestone-nome_tabela
-                                             t_milestone-guid
-                                             t_milestone-parent_guid
-                                             t_milestone-locale
-                                             t_milestone-target
-                                             t_milestone-actual
-                                             t_milestone-desc
-                                             t_milestone-start
-                                             t_milestone-due
-                                             t_milestone-completed
-                                             t_milestone-customnum1
-                                             t_milestone-customnum2
-                                             t_milestone-customnum3
-                                             t_milestone-weight
-                                             t_milestone-rating
-                                             t_milestone-score
-                                             t_milestone-actualnumber.
-          APPEND t_milestone.
-          CLEAR t_milestone.
+          SPLIT W_outdata-coluna AT p_deli INTO w_milestone-add
+                                             w_milestone-nome_tabela
+                                             w_milestone-guid
+                                             w_milestone-parent_guid
+                                             w_milestone-locale
+                                             w_milestone-target
+                                             w_milestone-actual
+                                             w_milestone-desc
+                                             w_milestone-start
+                                             w_milestone-due
+                                             w_milestone-completed
+                                             w_milestone-customnum1
+                                             w_milestone-customnum2
+                                             w_milestone-customnum3
+                                             w_milestone-weight
+                                             w_milestone-rating
+                                             w_milestone-score
+                                             w_milestone-actualnumber.
+          APPEND w_milestone to t_milestone.
+          CLEAR w_milestone.
 
         WHEN 'Task'.
-          SPLIT t_outdata-coluna AT p_deli INTO t_task-add
-                                             t_task-nome_tabela
-                                             t_task-guid
-                                             t_task-parent_guid
-                                             t_task-locale
-                                             t_task-target
-                                             t_task-actual
-                                             t_task-desc
-                                             t_task-start
-                                             t_task-due.
-          APPEND t_task.
-          CLEAR t_task.
+          SPLIT w_outdata-coluna AT p_deli INTO w_task-add
+                                             w_task-nome_tabela
+                                             w_task-guid
+                                             w_task-parent_guid
+                                             w_task-locale
+                                             w_task-target
+                                             w_task-actual
+                                             w_task-desc
+                                             w_task-start
+                                             w_task-due.
+          APPEND w_task to t_task.
+          CLEAR w_task.
+
         WHEN 'Target'.
-          SPLIT W_outdata-coluna AT p_deli INTO t_target-add
-                                             t_target-nome_tabela
-                                             t_target-guid
-                                             t_target-parent_guid
-                                             t_target-locale
-                                             t_target-target
-                                             t_target-actual
-                                             t_target-desc
-                                             t_target-start
-                                             t_target-due
-                                             t_target-done
-                                             t_target-customnum1
-                                             t_target-customnum2
-                                             t_target-customnum3
-                                             t_target-weight
-                                             t_target-rating
-                                             t_target-score
-                                             t_target-actualnumber.
-          APPEND t_target.
-          CLEAR t_target.
+          SPLIT W_outdata-coluna AT p_deli INTO w_target-add
+                                             w_target-nome_tabela
+                                             w_target-guid
+                                             w_target-parent_guid
+                                             w_target-locale
+                                             w_target-target
+                                             w_target-actual
+                                             w_target-desc
+                                             w_target-start
+                                             w_target-due
+                                             w_target-done
+                                             w_target-customnum1
+                                             w_target-customnum2
+                                             w_target-customnum3
+                                             w_target-weight
+                                             w_target-rating
+                                             w_target-score
+                                             w_target-actualnumber.
+          APPEND w_target to t_target.
+          CLEAR w_target.
 
         WHEN 'MetricLookupEntry'.
-          SPLIT t_outdata-coluna AT p_deli INTO t_metriclookupentry-add
-                                             t_metriclookupentry-nome_tabela
-                                             t_metriclookupentry-guid
-                                             t_metriclookupentry-parent_guid
-                                             t_metriclookupentry-locale
-                                             t_metriclookupentry-description
-                                             t_metriclookupentry-rating
-                                             t_metriclookupentry-achievement.
+          SPLIT t_outdata-coluna AT p_deli INTO w_metriclookupentry-add
+                                             w_metriclookupentry-nome_tabela
+                                             w_metriclookupentry-guid
+                                             w_metriclookupentry-parent_guid
+                                             w_metriclookupentry-locale
+                                             w_metriclookupentry-description
+                                             w_metriclookupentry-rating
+                                             w_metriclookupentry-achievement.
 
-          APPEND t_metriclookupentry.
-          CLEAR t_metriclookupentry.
+          APPEND w_metriclookupentry to t_metriclookupentry.
+          CLEAR w_metriclookupentry.
 
         WHEN OTHERS.
 
