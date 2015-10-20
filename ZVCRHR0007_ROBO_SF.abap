@@ -180,7 +180,9 @@ DATA: t_goallibraryentry  TYPE TABLE OF y_goallibraryentry,
       t_target            TYPE TABLE OF y_target,
       t_metriclookupentry TYPE TABLE OF y_metriclookupentry,
       t_files             TYPE filetable,
-      t_outdata           TYPE STANDARD TABLE OF y_arquivo.
+      t_outdata           TYPE STANDARD TABLE OF y_arquivo,
+      t_credenciais       TYPE TABLE OF ztbhr_sfsf_crede,
+      t_log               TYPE TABLE OF ztbhr_sfsf_log.
 
 *  ----------------------------------------------------------------------*
 *   Work Area                                                            *
@@ -192,20 +194,32 @@ DATA: w_goallibraryentry  TYPE y_goallibraryentry,
       w_metriclookupentry TYPE y_metriclookupentry,
       w_files             TYPE file_table,
       w_outdata           TYPE y_arquivo,
-      w_check             TYPE y_check.
+      w_check             TYPE y_check,
+      w_log               TYPE ztbhr_sfsf_log.
 
 *  ----------------------------------------------------------------------*
 *   Variáveis                                                            *
 *  ----------------------------------------------------------------------*
-DATA: v_rc    TYPE i,
-      v_linha TYPE string,
-      v_file  TYPE string.
+DATA: v_rc        TYPE i,
+      v_linha     TYPE string,
+      v_file      TYPE string,
+      v_idlog     TYPE ztbhr_sfsf_log-idlog,
+      v_seq       TYPE ztbhr_sfsf_log-seq.
+
+*  ----------------------------------------------------------------------*
+*   Constantes                                                           *
+*  ----------------------------------------------------------------------*
+CONSTANTS: c_error                TYPE c VALUE 'E',
+           c_warning              TYPE c VALUE 'W',
+           c_success              TYPE c VALUE 'S'.
 
 *  ----------------------------------------------------------------------*
 *   Tela de Seleção                                                      *
 *  ----------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-000.
 PARAMETERS : p_file TYPE string DEFAULT 'C:\',
              p_deli TYPE c      DEFAULT ';'.
+SELECTION-SCREEN END OF BLOCK b1.
 
 *  ----------------------------------------------------------------------*
 *   At Selection-Screen                                                  *
@@ -242,6 +256,8 @@ START-OF-SELECTION.
   PERFORM zf_split_dados.
 
   PERFORM zf_verificar_metas.
+
+  PERFORM zf_atualizar_metas_sf.
 
 *&---------------------------------------------------------------------*
 *&      Form  ZF_CARREGAR_ARQUIVO
@@ -524,3 +540,179 @@ FORM zf_verificar_metas .
   MODIFY ztbhr_sfvc_mile  FROM TABLE t_mile.
 
 ENDFORM.                    " ZF_VERIFICAR_METAS
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_atualizar_metas_sf
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_atualizar_metas_sf.
+
+  DATA: w_credenciais LIKE LINE OF t_credenciais.
+
+  DATA: l_batchsize TYPE i,
+        l_sessionid TYPE string.
+
+  SELECT *
+    INTO TABLE t_credenciais
+    FROM ztbhr_sfsf_crede
+   WHERE empresa EQ 'VC'.
+
+  READ TABLE t_credenciais INTO w_credenciais INDEX 1.
+
+  PERFORM zf_login_successfactors USING 'VC'
+                               CHANGING l_sessionid
+                                        l_batchsize.
+
+ENDFORM.                    "zf_atualizar_metas_sf
+
+*  &---------------------------------------------------------------------*
+*  &      Form  ZF_LOGIN_SUCCESSFACTORS
+*  &---------------------------------------------------------------------*
+FORM zf_login_successfactors  USING    p_empresa
+                              CHANGING c_sessionid
+                                       c_batchsize.
+
+  DATA: l_o_login TYPE REF TO zsfi_co_si_login_request,
+        l_o_erro  TYPE REF TO cx_root,
+        l_text    TYPE string.
+
+  DATA: w_credenciais LIKE LINE OF t_credenciais,
+        w_request     TYPE zsfi_mt_login_request,
+        w_response    TYPE zsfi_mt_login_response.
+
+*  / Lógica responsável por efetuar o Login no SuccessFactors
+
+  CREATE OBJECT l_o_login.
+
+*  / Seleciona os dados de acesso da empresa
+  READ TABLE t_credenciais INTO w_credenciais WITH KEY empresa = p_empresa BINARY SEARCH.
+  IF sy-subrc NE 0.
+    PERFORM zf_log USING space c_error text-009 p_empresa.
+  ENDIF.
+*  /
+
+*  / Converte a senha para efetuar o Login
+  PERFORM zf_decode_pass CHANGING w_credenciais-password.
+*  /
+
+  c_batchsize = w_credenciais-batchsize.
+
+*  / Se não foi cadastrado um BatchSize para a empresa, assume o valor Default
+  IF c_batchsize IS INITIAL.
+    c_batchsize = '200'.
+  ENDIF.
+*  /
+
+  w_request-mt_login_request-credential-company_id = w_credenciais-companyid.
+  w_request-mt_login_request-credential-username   = w_credenciais-username.
+  w_request-mt_login_request-credential-password   = w_credenciais-password.
+
+  TRY.
+
+      CALL METHOD l_o_login->si_login_request
+        EXPORTING
+          output = w_request
+        IMPORTING
+          input  = w_response.
+
+      IF w_response-mt_login_response-session_id IS INITIAL.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar Login para a Empresa'(015) p_empresa.
+      ELSE.
+        c_sessionid = w_response-mt_login_response-session_id.
+        PERFORM zf_log USING space c_success 'Login Efetuado com Sucesso para a Empresa'(016) p_empresa.
+        PERFORM zf_log USING space c_success 'SessionID'(017) c_sessionid.
+      ENDIF.
+
+    CATCH cx_ai_system_fault INTO l_o_erro.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar Login para a Empresa'(015) p_empresa.
+
+      l_text = l_o_erro->get_text( ).
+      PERFORM zf_log USING space c_error l_text space.
+
+  ENDTRY.
+
+*  /
+
+ENDFORM.                    " ZF_LOGIN_SUCCESSFACTORS
+
+*  &---------------------------------------------------------------------*
+*  &      Form  ZF_LOG
+*  &---------------------------------------------------------------------*
+FORM zf_log  USING p_pernr
+                   p_type
+                   p_message1
+                   p_message2.
+
+  IF t_log[] IS INITIAL.
+
+*     Seleciona o número do ID do LOG
+    PERFORM zf_gera_id_log USING '01' 'ZHRGCA0027'
+                           CHANGING v_idlog.
+  ENDIF.
+
+  ADD 1 TO v_seq.
+
+  w_log-idlog   = v_idlog.
+  w_log-pernr   = p_pernr.
+  w_log-type    = p_type.
+  CONCATENATE p_message1 p_message2 INTO w_log-message SEPARATED BY space.
+  w_log-uname   = sy-uname.
+
+  GET TIME.
+  w_log-data    = sy-datum.
+  w_log-hora    = sy-uzeit.
+
+  w_log-seq     = v_seq.
+
+  APPEND w_log TO t_log.
+  CLEAR w_log.
+
+ENDFORM.                    " ZF_LOG
+
+*&---------------------------------------------------------------------*
+*&      Form  ZF_GERA_ID_LOG
+*&---------------------------------------------------------------------*
+FORM zf_gera_id_log  USING    p_nr_range TYPE inri-nrrangenr
+                              p_object   TYPE inri-object
+                     CHANGING p_idlog.
+
+  CALL FUNCTION 'NUMBER_GET_NEXT'
+    EXPORTING
+      nr_range_nr             = p_nr_range
+      object                  = p_object
+    IMPORTING
+      number                  = p_idlog
+    EXCEPTIONS
+      interval_not_found      = 1
+      number_range_not_intern = 2
+      object_not_found        = 3
+      quantity_is_0           = 4
+      quantity_is_not_1       = 5
+      interval_overflow       = 6
+      buffer_overflow         = 7
+      OTHERS                  = 8.
+
+ENDFORM.                    " F_GERA_SERIAL
+
+*  &---------------------------------------------------------------------*
+*  &      Form  ZF_DECODE_PASS
+*  &---------------------------------------------------------------------*
+FORM zf_decode_pass CHANGING c_password.
+
+  DATA: l_obj_utility TYPE REF TO cl_http_utility,
+        l_pass        TYPE string.
+
+  CREATE OBJECT l_obj_utility.
+
+  l_pass = c_password.
+
+  CALL METHOD l_obj_utility->decode_base64
+    EXPORTING
+      encoded = l_pass
+    RECEIVING
+      decoded = l_pass.
+
+  c_password = l_pass.
+
+ENDFORM.                    " ZF_DECODE_PASS
