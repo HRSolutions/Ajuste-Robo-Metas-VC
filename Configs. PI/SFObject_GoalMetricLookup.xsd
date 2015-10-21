@@ -1,6 +1,6 @@
 
 <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="urn:hrsolutions:successfactors:1.0" targetNamespace="urn:hrsolutions:successfactors:1.0">
-   <xsd:complexType name="SFObject_GoalMetricLookup">
+   <xsd:complexType name="SFObject_MetricLookup">
       <xsd:sequence>
          <xsd:element name="id" type="xsd:string" minOccurs="0" />
          <xsd:element name="businessKeys" type="xsd:string" minOccurs="0" />

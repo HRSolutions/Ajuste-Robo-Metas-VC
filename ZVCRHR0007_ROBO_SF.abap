@@ -27,42 +27,42 @@ REPORT zvcrhr0007_robo_sf.
 *   Types                                                                *
 *  ----------------------------------------------------------------------*
 TYPES: BEGIN OF y_goallibraryentry,
-          add TYPE string,
-          nome_tabela TYPE string,
-          guid TYPE string,
-          parent_guid TYPE string,
-          locale TYPE string,
-          name TYPE string,
-          metric TYPE string,
-          desc TYPE string,
-          start TYPE string,
-          due TYPE string,
-          done TYPE string,
-          category TYPE string,
-          weight TYPE string,
-          state TYPE string,
-          target_baseline TYPE string,
-          goto_url TYPE string,
-          rating TYPE string,
-          achievement TYPE string,
-          bizx_actual TYPE string,
-          bizx_target TYPE string,
-          bizx_pos TYPE string,
-          bizx_strategic TYPE string,
-          goal_score TYPE string,
-          runrate TYPE string,
-          runrate_forecast TYPE string,
-          proposed_runrate TYPE string,
-          fromlibrary TYPE string,
-          status TYPE string,
-          library TYPE string,
-          bizx_effort_spent TYPE string,
-          interpolacao TYPE string,
-          type TYPE string,
-          bizx_status_comments TYPE string,
-  END OF y_goallibraryentry,
+        add TYPE string,
+        nome_tabela TYPE string,
+        guid TYPE string,
+        parent_guid TYPE string,
+        locale TYPE string,
+        name TYPE string,
+        metric TYPE string,
+        desc TYPE string,
+        start TYPE string,
+        due TYPE string,
+        done TYPE string,
+        category TYPE string,
+        weight TYPE string,
+        state TYPE string,
+        target_baseline TYPE string,
+        goto_url TYPE string,
+        rating TYPE string,
+        achievement TYPE string,
+        bizx_actual TYPE string,
+        bizx_target TYPE string,
+        bizx_pos TYPE string,
+        bizx_strategic TYPE string,
+        goal_score TYPE string,
+        runrate TYPE string,
+        runrate_forecast TYPE string,
+        proposed_runrate TYPE string,
+        fromlibrary TYPE string,
+        status TYPE string,
+        library TYPE string,
+        bizx_effort_spent TYPE string,
+        interpolacao TYPE string,
+        type TYPE string,
+        bizx_status_comments TYPE string,
+      END OF y_goallibraryentry,
 
-  BEGIN OF y_milestone,
+      BEGIN OF y_milestone,
        add TYPE string,
        nome_tabela TYPE string,
        guid TYPE string,
@@ -82,9 +82,9 @@ TYPES: BEGIN OF y_goallibraryentry,
        score TYPE string,
        actualnumber TYPE string,
        resto TYPE string,
-  END OF y_milestone,
+      END OF y_milestone,
 
-  BEGIN OF y_task,
+     BEGIN OF y_task,
       add TYPE string,
       nome_tabela TYPE string,
       guid TYPE string,
@@ -96,7 +96,7 @@ TYPES: BEGIN OF y_goallibraryentry,
       start TYPE string,
       due TYPE string,
       done TYPE string ,
-  END OF y_task,
+    END OF y_task,
 
   BEGIN OF y_target,
     add TYPE string,
@@ -544,14 +544,24 @@ ENDFORM.                    " ZF_VERIFICAR_METAS
 *&---------------------------------------------------------------------*
 *&      Form  zf_atualizar_metas_sf
 *&---------------------------------------------------------------------*
-*       text
-*----------------------------------------------------------------------*
 FORM zf_atualizar_metas_sf.
 
-  DATA: w_credenciais LIKE LINE OF t_credenciais.
+DATA: t_metas        TYPE TABLE OF ztbhr_sfvc_metas,
+      t_data         TYPE zsfi_dt_operation_request_tab2, "*****
+      w_data         LIKE LINE OF t_data,
+
+  DATA: w_credenciais       LIKE LINE OF t_credenciais,
+        w_goallibraryentry  LIKE LINE OF t_goallibraryentry.
 
   DATA: l_batchsize TYPE i,
         l_sessionid TYPE string.
+
+        DEFINE add_data.
+          w_data-key = &1.
+          w_data-value = &2.
+          append w_data to t_data.
+          clear w_data.
+        END-OF-DEFINITION.
 
   SELECT *
     INTO TABLE t_credenciais
@@ -560,9 +570,43 @@ FORM zf_atualizar_metas_sf.
 
   READ TABLE t_credenciais INTO w_credenciais INDEX 1.
 
-  PERFORM zf_login_successfactors USING 'VC'
-                               CHANGING l_sessionid
-                                        l_batchsize.
+  SELECT *
+    INTO TABLE t_metas
+    FROM ztbhr_sfvc_metas.
+
+sort t_metas by layout.
+
+loop at t_metas into w_metas.
+
+if w_metas-layout ne w_old-layout and
+   w_old-layout   ne space.
+
+   w_sfobject-entity = w_templ-template.
+   w_sfobject-data   = t_data[].
+   APPEND w_sfobject TO t_sfobject.
+   CLEAR: w_sfobject, t_data[].
+
+   PERFORM zf_call_upsert USING w_old-layout
+                                 w_credenciais
+                                 t_sfobject[].
+
+                                 clear: t_sfobject.
+
+   endif.
+
+    add_data: 'guid'                  w_metas-guid,
+              'flag'                  'Public',
+              'userId'                w_metas-userid,
+              'status'                'read only',
+              'description'           w_metas-description,
+              'field_desc'            w_metas-field_desc,
+              'name'                  w_metas-name,
+              'actual_achievement'    w_metas-actual_achieveme,
+              'category'              w_metas-category.
+
+w_old = w_metas.
+
+endloop.
 
 ENDFORM.                    "zf_atualizar_metas_sf
 
@@ -716,3 +760,134 @@ FORM zf_decode_pass CHANGING c_password.
   c_password = l_pass.
 
 ENDFORM.                    " ZF_DECODE_PASS
+
+*  &---------------------------------------------------------------------*
+*  &      Form  ZF_CALL_UPSERT
+*  &---------------------------------------------------------------------*
+  FORM zf_call_upsert  USING i_entity
+                             p_credenciais LIKE LINE OF t_credenciais
+                             p_sfobject    TYPE zsfi_dt_operation_request__tab.
+
+    DATA: l_count        TYPE i,
+          l_count_tot    TYPE i,
+          l_lote         TYPE i,
+          l_o_erro       TYPE REF TO cx_root,
+          l_o_erro_apl   TYPE REF TO cx_ai_application_fault,
+          l_o_erro_fault TYPE REF TO zsfi_cx_dt_fault,
+          l_text         TYPE string,
+          l_sessionid    TYPE string,
+          l_batchsize    TYPE i,
+          l_tabix        TYPE sy-tabix,
+          l_o_upsert     TYPE REF TO zsfi_co_si_upsert_request,
+          w_request      TYPE zsfi_mt_operation_request,
+          w_response     TYPE zsfi_mt_operation_response,
+          w_result       TYPE LINE OF zsfi_mt_operation_response-mt_operation_response-object_edit_result,
+          w_sfobject     TYPE LINE OF zsfi_dt_operation_request__tab,
+          t_sfobject     TYPE zsfi_dt_operation_request__tab,
+          w_sfparam      LIKE LINE OF w_request-mt_operation_request-processing_param,
+          t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
+          w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
+          w_sfobject_data     LIKE LINE OF w_sfobject-data.
+
+    IF lines( p_sfobject ) <= p_credenciais-batchsize.
+      l_count = 1.
+    ELSE.
+      l_count = lines( p_sfobject ) / p_credenciais-batchsize.
+    ENDIF.
+
+    DO l_count TIMES.
+
+      LOOP AT p_sfobject INTO w_sfobject FROM l_count_tot.
+
+        l_tabix = sy-tabix.
+        ADD 1 TO l_lote.
+        ADD 1 TO l_count_tot.
+
+        APPEND w_sfobject TO t_sfobject.
+*        DELETE p_sfobject INDEX l_tabix.
+        CLEAR w_sfobject.
+
+        IF l_lote     EQ p_credenciais-batchsize OR
+           l_count_tot  EQ lines( p_sfobject ).
+
+          PERFORM zf_login_successfactors USING p_credenciais-empresa
+                                       CHANGING l_sessionid
+                                                l_batchsize.
+
+          TRY.
+
+              CREATE OBJECT l_o_upsert.
+
+              w_request-mt_operation_request-entity     = i_entity.
+              w_request-mt_operation_request-session_id = l_sessionid.
+              w_request-mt_operation_request-sfobject   = t_sfobject.
+
+              CALL METHOD l_o_upsert->si_upsert_request
+                EXPORTING
+                  output = w_request
+                IMPORTING
+                  input  = w_response.
+
+              IF w_response-mt_operation_response-job_status EQ 'ERROR'.
+
+                PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
+
+                LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE error_status EQ 'ERROR'.
+                  PERFORM zf_log USING space c_error w_result-message space.
+                ENDLOOP.
+
+              ELSE.
+
+                PERFORM zf_log USING space c_success 'Upsert Efetuado com Sucesso para a Empresa'(023) p_credenciais-empresa.
+
+              ENDIF.
+
+              LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE edit_status NE 'ERROR'.
+
+                IF NOT w_result-id IS INITIAL.
+
+                  ADD 1 TO w_result-index.
+                  READ TABLE t_sfobject INTO w_sfobject INDEX w_result-index.
+                  READ TABLE w_sfobject-data INTO w_sfobject_data WITH KEY key = 'userId'.
+
+              ENDIF.
+
+              ENDLOOP.
+
+*              MODIFY ztbhr_sfsf_user FROM TABLE t_ztbhr_sfsf_user.
+
+            CATCH cx_ai_system_fault INTO l_o_erro.
+              PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
+
+              l_text = l_o_erro->get_text( ).
+              PERFORM zf_log USING space c_error l_text space.
+
+            CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
+              PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
+
+              l_text = l_o_erro_fault->standard-fault_text.
+              PERFORM zf_log USING space c_error l_text space.
+
+            CATCH cx_ai_application_fault INTO l_o_erro_apl.
+              PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
+
+              l_text = l_o_erro_apl->get_text( ).
+              PERFORM zf_log USING space c_error l_text space.
+
+          ENDTRY.
+
+*  /    Efetua o Logout no SuccessFactors.
+          PERFORM zf_logout_successfactors CHANGING l_sessionid.
+*  /
+
+          CLEAR: l_lote,
+                 w_sfobject,
+                 t_sfobject.
+
+        ENDIF.
+
+      ENDLOOP.
+
+    ENDDO.
+
+  ENDFORM.                    " ZF_CALL_UPSERT
