@@ -419,7 +419,8 @@ FORM zf_split_dados .
                                              w_milestone-weight
                                              w_milestone-rating
                                              w_milestone-score
-                                             w_milestone-actualnumber.
+                                             w_milestone-actualnumber
+                                             w_milestone-resto.
           APPEND w_milestone TO t_milestone.
           CLEAR w_milestone.
 
@@ -518,20 +519,30 @@ FORM zf_verificar_metas .
 
   LOOP AT t_metas ASSIGNING <fs_metas> WHERE NOT library IS INITIAL.
 
+    CLEAR w_goallibraryentry.
     READ TABLE t_goallibraryentry INTO w_goallibraryentry WITH KEY guid = <fs_metas>-library BINARY SEARCH.
 
-    <fs_metas>-actual_achieveme = w_goallibraryentry-achievement.
+    IF sy-subrc EQ 0.
 
-    LOOP AT t_mile ASSIGNING <fs_milestone> WHERE goalid EQ <fs_metas>-id.
+      <fs_metas>-actual_achieveme = w_goallibraryentry-achievement.
 
-      READ TABLE t_milestone INTO w_milestone WITH KEY guid = <fs_milestone>-guid BINARY SEARCH.
+      LOOP AT t_mile ASSIGNING <fs_milestone> WHERE goalid EQ <fs_metas>-id.
 
-      <fs_milestone>-actualnumber = w_milestone-actualnumber.
-      <fs_milestone>-customnum1 = w_milestone-customnum1.
-      <fs_milestone>-customnum2 = w_milestone-customnum2.
-      <fs_milestone>-customnum3 = w_milestone-customnum3.
+        CLEAR w_milestone.
+        READ TABLE t_milestone INTO w_milestone WITH KEY guid = <fs_milestone>-guid BINARY SEARCH.
 
-    ENDLOOP.
+        IF sy-subrc EQ 0.
+
+          <fs_milestone>-actualnumber = w_milestone-actualnumber.
+          <fs_milestone>-customnum1 = w_milestone-customnum1.
+          <fs_milestone>-customnum2 = w_milestone-customnum2.
+          <fs_milestone>-customnum3 = w_milestone-customnum3.
+
+        ENDIF.
+
+      ENDLOOP.
+
+    ENDIF.
 
   ENDLOOP.
 
@@ -585,11 +596,6 @@ FORM zf_atualizar_metas_sf.
     IF w_metas-layout NE w_old-layout AND
        w_old-layout   NE space.
 
-      w_sfobject-entity = w_old-layout.
-      w_sfobject-data   = t_data[].
-      APPEND w_sfobject TO t_sfobject.
-      CLEAR: w_sfobject, t_data[].
-
       PERFORM zf_call_upsert USING w_old-layout
                                     w_credenciais
                                     t_sfobject[].
@@ -598,7 +604,11 @@ FORM zf_atualizar_metas_sf.
 
     ENDIF.
 
-    add_data: 'guid'                  w_metas-guid,
+    IF NOT w_metas-guid IS INITIAL.
+      add_data: 'guid'                  w_metas-guid.
+    ENDIF.
+
+    add_data:
               'flag'                  'Public',
               'userId'                w_metas-userid,
               'status'                'read only',
@@ -607,6 +617,11 @@ FORM zf_atualizar_metas_sf.
               'name'                  w_metas-name,
               'actual_achievement'    w_metas-actual_achieveme,
               'category'              w_metas-category.
+
+    w_sfobject-entity = w_metas-layout.
+    w_sfobject-data   = t_data[].
+    APPEND w_sfobject TO t_sfobject.
+    CLEAR: w_sfobject, t_data[].
 
     w_old = w_metas.
 
@@ -658,11 +673,6 @@ FORM zf_atualizar_metric_sf.
     IF w_metric-layout NE w_old-layout AND
        w_old-layout   NE space.
 
-      w_sfobject-entity = w_old-layout.
-      w_sfobject-data   = t_data[].
-      APPEND w_sfobject TO t_sfobject.
-      CLEAR: w_sfobject, t_data[].
-
       PERFORM zf_call_upsert USING w_old-layout
                                     w_credenciais
                                     t_sfobject[].
@@ -677,6 +687,11 @@ FORM zf_atualizar_metric_sf.
               'rating'                w_metric-rating,
               'achievement'           w_metric-achievement,
               'description'           w_metric-description.
+
+    w_sfobject-entity = w_metric-layout.
+    w_sfobject-data   = t_data[].
+    APPEND w_sfobject TO t_sfobject.
+    CLEAR: w_sfobject, t_data[].
 
     w_old = w_metric.
 
@@ -728,11 +743,6 @@ FORM zf_atualizar_mile_sf.
     IF w_mile-layout NE w_old-layout AND
        w_old-layout   NE space.
 
-      w_sfobject-entity = w_old-layout.
-      w_sfobject-data   = t_data[].
-      APPEND w_sfobject TO t_sfobject.
-      CLEAR: w_sfobject, t_data[].
-
       PERFORM zf_call_upsert USING w_old-layout
                                     w_credenciais
                                     t_sfobject[].
@@ -741,14 +751,48 @@ FORM zf_atualizar_mile_sf.
 
     ENDIF.
 
+    TRANSLATE w_mile-customnum1   USING '. '.
+    TRANSLATE w_mile-customnum2   USING '. '.
+    TRANSLATE w_mile-customnum3   USING '. '.
+    TRANSLATE w_mile-actualnumber USING '. '.
+
+    CONDENSE w_mile-customnum1    NO-GAPS.
+    CONDENSE w_mile-customnum2    NO-GAPS.
+    CONDENSE w_mile-customnum3    NO-GAPS.
+    CONDENSE w_mile-actualnumber  NO-GAPS.
+
+    TRANSLATE w_mile-customnum1   USING ',.'.
+    TRANSLATE w_mile-customnum2   USING ',.'.
+    TRANSLATE w_mile-customnum3   USING ',.'.
+    TRANSLATE w_mile-actualnumber USING ',.'.
+
+    IF w_mile-customnum1 IS INITIAL.
+      w_mile-customnum1 = '0.00'.
+    ENDIF.
+
+    IF w_mile-customnum2 IS INITIAL.
+      w_mile-customnum2 = '0.00'.
+    ENDIF.
+
+    IF w_mile-customnum3 IS INITIAL.
+      w_mile-customnum3 = '0.00'.
+    ENDIF.
+
+    IF w_mile-actualnumber IS INITIAL.
+      w_mile-actualnumber = '0.00'.
+    ENDIF.
+
     add_data: 'guid'                w_mile-guid,
               'goalid'              w_mile-goalid,
-              'masterid'            w_mile-masterid,
               'customnum1'          w_mile-customnum1,
               'customnum2'          w_mile-customnum2,
               'customnum3'          w_mile-customnum3,
-              'actualnumber'        w_mile-actualnumber,
-              'rating'              w_mile-rating.
+              'actualnumber'        w_mile-actualnumber.
+
+    w_sfobject-entity = w_mile-layout.
+    w_sfobject-data   = t_data[].
+    APPEND w_sfobject TO t_sfobject.
+    CLEAR: w_sfobject, t_data[].
 
     w_old = w_mile.
 
@@ -1246,7 +1290,7 @@ FORM zf_query_milestone USING p_entity.
     w_miles_sf-rating = w_sfobject-rating.
 
     APPEND w_miles_sf TO t_miles_sf.
-    CLEAR t_miles_sf.
+    CLEAR w_miles_sf.
 
   ENDLOOP.
 
