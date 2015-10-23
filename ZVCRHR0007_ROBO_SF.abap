@@ -182,7 +182,9 @@ DATA: t_goallibraryentry  TYPE TABLE OF y_goallibraryentry,
       t_files             TYPE filetable,
       t_outdata           TYPE STANDARD TABLE OF y_arquivo,
       t_credenciais       TYPE TABLE OF ztbhr_sfsf_crede,
-      t_log               TYPE TABLE OF ztbhr_sfsf_log.
+      t_log               TYPE TABLE OF ztbhr_sfsf_log,
+      t_metas_sf          TYPE TABLE OF ztbhr_sfvc_metas,
+      t_miles_sf          TYPE TABLE OF ztbhr_sfvc_mile.
 
 *  ----------------------------------------------------------------------*
 *   Work Area                                                            *
@@ -195,7 +197,9 @@ DATA: w_goallibraryentry  TYPE y_goallibraryentry,
       w_files             TYPE file_table,
       w_outdata           TYPE y_arquivo,
       w_check             TYPE y_check,
-      w_log               TYPE ztbhr_sfsf_log.
+      w_log               TYPE ztbhr_sfsf_log,
+      w_metas_sf          TYPE ztbhr_sfvc_metas,
+      w_miles_sf          TYPE ztbhr_sfvc_mile.
 
 *  ----------------------------------------------------------------------*
 *   Variáveis                                                            *
@@ -256,13 +260,9 @@ START-OF-SELECTION.
     FROM ztbhr_sfsf_crede.
 
   PERFORM zf_carregar_arquivo.
-
   PERFORM zf_split_dados.
-
-  PERFORM zf_query_goal.
-
+  PERFORM zf_query_sfsf.
   PERFORM zf_verificar_metas.
-
   PERFORM zf_atualizar_metas_sf.
   PERFORM zf_atualizar_metric_sf.
   PERFORM zf_atualizar_mile_sf.
@@ -1006,7 +1006,7 @@ ENDFORM.                    " ZF_CALL_UPSERT
 *  &---------------------------------------------------------------------*
 *  &      Form  ZF_QUERY_GOAL
 *  &---------------------------------------------------------------------*
-FORM zf_query_goal.
+FORM zf_query_goal USING p_entity.
 
   DATA: l_count        TYPE i,
         l_count_tot    TYPE i,
@@ -1022,12 +1022,11 @@ FORM zf_query_goal.
         w_request      TYPE zsf_mt_query_user_request,
         w_response     TYPE zsfi_mt_query_goal10_response,
         w_result       TYPE LINE OF zsfi_mt_operation_response-mt_operation_response-object_edit_result,
-        w_sfobject     TYPE LINE OF zsfi_dt_operation_request__tab,
         t_sfobject     TYPE zsfi_dt_operation_request__tab,
         t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
         w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
-        w_sfobject_data     LIKE LINE OF w_sfobject-data,
-        w_query             LIKE w_request-mt_query_user_request-query.
+        w_query             LIKE w_request-mt_query_user_request-query,
+        w_sfobject          LIKE LINE OF w_response-mt_query_goal10_response-sfobject.
 
   PERFORM zf_login_successfactors USING 'VC'
                                CHANGING l_sessionid
@@ -1037,11 +1036,14 @@ FORM zf_query_goal.
 
       CREATE OBJECT l_o_query.
 
-      w_query-query_string = 'select id, guid, masterid, modifier, currentOwner, numbering,'
-                &&  'goaltype, flag, parentid, userid, username, status, description, library,'
-                &&  'fromlibrary, lastModified, name, field_desc, metric, actual_achievement,'
-                &&  'rating, goal_score, bizx_target, interpolacao, bizx_actual, category, metricLookupAchievementType'
-                &&  'from Goal$303'.
+      CONCATENATE 'select id, guid, masterid, modifier, currentOwner, numbering,'
+                  'goaltype, flag, parentid, userid, username, status, description, library,'
+                  'fromlibrary, lastModified, name, field_desc, metric, actual_achievement,'
+                  'rating, goal_score, bizx_target, interpolacao, bizx_actual, category, metricLookupAchievementType'
+                  ' from '
+                  p_entity
+             INTO w_query-query_string SEPARATED BY space.
+
       w_request-mt_query_user_request-query      = w_query.
       w_request-mt_query_user_request-session_id = 'JSESSIONID=' && l_sessionid.
 
@@ -1071,4 +1073,181 @@ FORM zf_query_goal.
 
   ENDTRY.
 
+  LOOP AT w_response-mt_query_goal10_response-sfobject INTO w_sfobject.
+
+    w_metas_sf-layout = w_sfobject-type.
+    w_metas_sf-id = w_sfobject-id.
+    w_metas_sf-guid = w_sfobject-guid.
+    w_metas_sf-masterid = w_sfobject-master_id.
+    w_metas_sf-lastmodified = w_sfobject-last_modified.
+    w_metas_sf-modifier = w_sfobject-modifier.
+    w_metas_sf-currentowner = w_sfobject-current_owner.
+    w_metas_sf-numbering = w_sfobject-numbering.
+    w_metas_sf-goaltype = w_sfobject-goal_type.
+    w_metas_sf-flag = w_sfobject-flag.
+    w_metas_sf-parentid = w_sfobject-parent_id.
+    w_metas_sf-userid = w_sfobject-user_id.
+    w_metas_sf-username = w_sfobject-user_name.
+    w_metas_sf-status = w_sfobject-status.
+    w_metas_sf-dept = w_sfobject-dept.
+    w_metas_sf-div = w_sfobject-div.
+    w_metas_sf-loc = w_sfobject-loc.
+    w_metas_sf-defgrp = w_sfobject-def_grp.
+    w_metas_sf-bizxlaststatusit = w_sfobject-bizx_last_status_item_id.
+    w_metas_sf-bizxlastupdatere = w_sfobject-bizxlast_update_request_id.
+    w_metas_sf-description = w_sfobject-description.
+    w_metas_sf-library = w_sfobject-library.
+    w_metas_sf-fromlibrary = w_sfobject-fromlibrary.
+    w_metas_sf-name = w_sfobject-name.
+    w_metas_sf-field_desc = w_sfobject-field_desc.
+    w_metas_sf-weight = w_sfobject-weight.
+    w_metas_sf-metric = w_sfobject-metric.
+    w_metas_sf-actual_achieveme = w_sfobject-actual_achievement.
+    w_metas_sf-rating = w_sfobject-rating.
+    w_metas_sf-goal_score = w_sfobject-goal_score.
+    w_metas_sf-bizx_target = w_sfobject-bizx_target.
+    w_metas_sf-interpolacao = w_sfobject-interpolacao.
+    w_metas_sf-bizx_actual = w_sfobject-bizx_actual.
+    w_metas_sf-category = w_sfobject-category.
+
+    APPEND w_metas_sf TO t_metas_sf.
+    CLEAR w_metas_sf.
+
+  ENDLOOP.
+
 ENDFORM.                    " ZF_QUERY_GOAL
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_query_sfsf
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM zf_query_sfsf.
+
+  PERFORM zf_query_goal USING 'Goal$204'.
+  PERFORM zf_query_goal USING 'Goal$303'.
+  PERFORM zf_query_goal USING 'Goal$305'.
+  PERFORM zf_query_goal USING 'Goal$306'.
+  PERFORM zf_query_goal USING 'Goal$403'.
+  PERFORM zf_query_goal USING 'Goal$405'.
+  PERFORM zf_query_goal USING 'Goal$406'.
+  PERFORM zf_query_goal USING 'Goal$9'.
+  PERFORM zf_query_goal USING 'Goal$10'.
+  PERFORM zf_query_goal USING 'Goal$12'.
+  PERFORM zf_query_goal USING 'Goal$13'.
+  PERFORM zf_query_goal USING 'Goal$14'.
+  PERFORM zf_query_goal USING 'Goal$15'.
+  PERFORM zf_query_goal USING 'Goal$16'.
+
+  PERFORM zf_query_milestone USING 'GoalMilestone$204'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$303'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$305'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$306'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$403'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$405'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$406'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$9'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$10'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$12'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$13'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$14'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$15'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$16'.
+
+  MODIFY ztbhr_sfvc_metas FROM TABLE t_metas_sf.
+  MODIFY ztbhr_sfvc_mile  FROM TABLE t_miles_sf.
+
+ENDFORM.                    "zf_query_sfsf
+
+*  &---------------------------------------------------------------------*
+*  &      Form  ZF_QUERY_MILESTONE
+*  &---------------------------------------------------------------------*
+FORM zf_query_milestone USING p_entity.
+
+  DATA: l_count        TYPE i,
+        l_count_tot    TYPE i,
+        l_lote         TYPE i,
+        l_o_erro       TYPE REF TO cx_root,
+        l_o_erro_apl   TYPE REF TO cx_ai_application_fault,
+        l_o_erro_fault TYPE REF TO zsfi_cx_dt_fault,
+        l_text         TYPE string,
+        l_sessionid    TYPE string,
+        l_batchsize    TYPE i,
+        l_tabix        TYPE sy-tabix,
+        l_o_query      TYPE REF TO zsfi_co_si_query_milestone_vc,
+        w_request      TYPE zsf_mt_query_user_request,
+        w_response     TYPE zsfi_mt_query_milestone_response,
+        w_result       TYPE LINE OF zsfi_mt_operation_response-mt_operation_response-object_edit_result,
+        t_sfobject     TYPE zsfi_dt_operation_request__tab,
+        t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
+        w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
+        w_query             LIKE w_request-mt_query_user_request-query,
+        w_sfobject          LIKE LINE OF w_response-mt_query_milestone_response-sfobject.
+
+  PERFORM zf_login_successfactors USING 'VC'
+                               CHANGING l_sessionid
+                                        l_batchsize.
+
+  TRY.
+
+      CREATE OBJECT l_o_query.
+
+      CONCATENATE 'select id, guid, goalid, masterid, lastmodified, modifier,'
+                  'displayorder, field_desc, customnum1, customnum2, customnum3,'
+                  'actualnumber, rating'
+                  'from'
+                  p_entity
+             INTO w_query-query_string SEPARATED BY space.
+
+      w_request-mt_query_user_request-query      = w_query.
+      w_request-mt_query_user_request-session_id = 'JSESSIONID=' && l_sessionid.
+
+      CALL METHOD l_o_query->si_query_goal10
+        EXPORTING
+          output = w_request
+        IMPORTING
+          input  = w_response.
+
+    CATCH cx_ai_system_fault INTO l_o_erro.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+      l_text = l_o_erro->get_text( ).
+      PERFORM zf_log USING space c_error l_text space.
+
+    CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+      l_text = l_o_erro_fault->standard-fault_text.
+      PERFORM zf_log USING space c_error l_text space.
+
+    CATCH cx_ai_application_fault INTO l_o_erro_apl.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+      l_text = l_o_erro_apl->get_text( ).
+      PERFORM zf_log USING space c_error l_text space.
+
+  ENDTRY.
+
+  LOOP AT w_response-mt_query_milestone_response-sfobject INTO w_sfobject.
+
+    w_miles_sf-layout = w_sfobject-type.
+    w_miles_sf-id = w_sfobject-id.
+    w_miles_sf-guid = w_sfobject-guid.
+    w_miles_sf-goalid = w_sfobject-goal_id.
+    w_miles_sf-masterid = w_sfobject-master_id.
+    w_miles_sf-lastmodified = w_sfobject-last_modified.
+    w_miles_sf-modifier = w_sfobject-modifier.
+    w_miles_sf-displayorder = w_sfobject-display_order.
+    w_miles_sf-field_desc = w_sfobject-field_desc.
+    w_miles_sf-customnum1 = w_sfobject-custom_num1.
+    w_miles_sf-customnum2 = w_sfobject-custom_num2.
+    w_miles_sf-customnum3 = w_sfobject-custom_num3.
+    w_miles_sf-actualnumber = w_sfobject-actual_number.
+    w_miles_sf-rating = w_sfobject-rating.
+
+    APPEND w_miles_sf TO t_miles_sf.
+    CLEAR t_miles_sf.
+
+  ENDLOOP.
+
+ENDFORM.                    " ZF_QUERY_MILESTONE
