@@ -258,6 +258,8 @@ START-OF-SELECTION.
   PERFORM zf_verificar_metas.
 
   PERFORM zf_atualizar_metas_sf.
+  PERFORM zf_atualizar_metric_sf.
+  PERFORM zf_atualizar_mile_sf.
 
 *&---------------------------------------------------------------------*
 *&      Form  ZF_CARREGAR_ARQUIVO
@@ -508,30 +510,22 @@ FORM zf_verificar_metas .
         t_milestone         BY guid,
         t_metriclookupentry BY guid.
 
-  LOOP AT t_metas ASSIGNING <fs_metas>.
+  LOOP AT t_metas ASSIGNING <fs_metas> where not library is initial.
 
-    READ TABLE t_goallibraryentry INTO w_goallibraryentry WITH KEY guid = <fs_metas>-guid BINARY SEARCH.
+    READ TABLE t_goallibraryentry INTO w_goallibraryentry WITH KEY guid = <fs_metas>-library BINARY SEARCH.
 
     <fs_metas>-actual_achieveme = w_goallibraryentry-achievement.
 
-  ENDLOOP.
+    LOOP AT t_mile ASSIGNING <fs_milestone> where goalid eq <fs_metas>-goalid.
 
-  LOOP AT t_mile ASSIGNING <fs_milestone>.
+      READ TABLE t_milestone INTO w_milestone WITH KEY guid = <fs_milestone>-guid BINARY SEARCH.
 
-    READ TABLE t_milestone INTO w_milestone WITH KEY guid = <fs_milestone>-guid BINARY SEARCH.
+      <fs_milestone>-actualnumber = w_milestone-actualnumber.
+      <fs_milestone>-customnum1 = w_milestone-customnum1.
+      <fs_milestone>-customnum2 = w_milestone-customnum2.
+      <fs_milestone>-customnum3 = w_milestone-customnum3.
 
-    <fs_milestone>-actualnumber = w_milestone-actualnumber.
-    <fs_milestone>-customnum1 = w_milestone-customnum1.
-    <fs_milestone>-customnum2 = w_milestone-customnum2.
-    <fs_milestone>-customnum3 = w_milestone-customnum3.
-
-  ENDLOOP.
-
-  LOOP AT t_metric ASSIGNING <fs_metric>.
-
-    READ TABLE t_metriclookupentry INTO w_metriclookupentry WITH KEY guid = <fs_metric>-subguid BINARY SEARCH.
-
-    <fs_metric>-achievement = w_metriclookupentry-achievement.
+    ENDLOOP.
 
   ENDLOOP.
 
@@ -546,9 +540,13 @@ ENDFORM.                    " ZF_VERIFICAR_METAS
 *&---------------------------------------------------------------------*
 FORM zf_atualizar_metas_sf.
 
-DATA: t_metas        TYPE TABLE OF ztbhr_sfvc_metas,
-      t_data         TYPE zsfi_dt_operation_request_tab2, "*****
-      w_data         LIKE LINE OF t_data,
+  DATA: t_metas        TYPE TABLE OF ztbhr_sfvc_metas,
+        t_data         TYPE zsfi_dt_operation_request_tab2, "*****
+        w_data         LIKE LINE OF t_data,
+        w_metas        LIKE LINE OF t_metas,
+        w_old          LIKE w_metas,
+        w_sfobject     TYPE LINE OF zsfi_dt_operation_request__tab,
+        t_sfobject     TYPE zsfi_dt_operation_request__tab.
 
   DATA: w_credenciais       LIKE LINE OF t_credenciais,
         w_goallibraryentry  LIKE LINE OF t_goallibraryentry.
@@ -556,12 +554,12 @@ DATA: t_metas        TYPE TABLE OF ztbhr_sfvc_metas,
   DATA: l_batchsize TYPE i,
         l_sessionid TYPE string.
 
-        DEFINE add_data.
-          w_data-key = &1.
-          w_data-value = &2.
-          append w_data to t_data.
-          clear w_data.
-        END-OF-DEFINITION.
+  DEFINE add_data.
+    w_data-key = &1.
+    w_data-value = &2.
+    append w_data to t_data.
+    clear w_data.
+  END-OF-DEFINITION.
 
   SELECT *
     INTO TABLE t_credenciais
@@ -574,25 +572,25 @@ DATA: t_metas        TYPE TABLE OF ztbhr_sfvc_metas,
     INTO TABLE t_metas
     FROM ztbhr_sfvc_metas.
 
-sort t_metas by layout.
+  SORT t_metas BY layout.
 
-loop at t_metas into w_metas.
+  LOOP AT t_metas INTO w_metas.
 
-if w_metas-layout ne w_old-layout and
-   w_old-layout   ne space.
+    IF w_metas-layout NE w_old-layout AND
+       w_old-layout   NE space.
 
-   w_sfobject-entity = w_templ-template.
-   w_sfobject-data   = t_data[].
-   APPEND w_sfobject TO t_sfobject.
-   CLEAR: w_sfobject, t_data[].
+      w_sfobject-entity = w_old-layout.
+      w_sfobject-data   = t_data[].
+      APPEND w_sfobject TO t_sfobject.
+      CLEAR: w_sfobject, t_data[].
 
-   PERFORM zf_call_upsert USING w_old-layout
-                                 w_credenciais
-                                 t_sfobject[].
+      PERFORM zf_call_upsert USING w_old-layout
+                                    w_credenciais
+                                    t_sfobject[].
 
-                                 clear: t_sfobject.
+      CLEAR: t_sfobject.
 
-   endif.
+    ENDIF.
 
     add_data: 'guid'                  w_metas-guid,
               'flag'                  'Public',
@@ -604,11 +602,153 @@ if w_metas-layout ne w_old-layout and
               'actual_achievement'    w_metas-actual_achieveme,
               'category'              w_metas-category.
 
-w_old = w_metas.
+    w_old = w_metas.
 
-endloop.
+  ENDLOOP.
 
 ENDFORM.                    "zf_atualizar_metas_sf
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_atualizar_metas_sf
+*&---------------------------------------------------------------------*
+FORM zf_atualizar_metric_sf.
+
+  DATA: t_metric       TYPE TABLE OF ztbhr_sfvc_metri,
+        t_data         TYPE zsfi_dt_operation_request_tab2, "*****
+        w_data         LIKE LINE OF t_data,
+        w_metric       LIKE LINE OF t_metric,
+        w_old          LIKE w_metric,
+        w_sfobject     TYPE LINE OF zsfi_dt_operation_request__tab,
+        t_sfobject     TYPE zsfi_dt_operation_request__tab.
+
+  DATA: w_credenciais       LIKE LINE OF t_credenciais,
+        w_goallibraryentry  LIKE LINE OF t_goallibraryentry.
+
+  DATA: l_batchsize TYPE i,
+        l_sessionid TYPE string.
+
+  DEFINE add_data.
+    w_data-key = &1.
+    w_data-value = &2.
+    append w_data to t_data.
+    clear w_data.
+  END-OF-DEFINITION.
+
+  SELECT *
+    INTO TABLE t_credenciais
+    FROM ztbhr_sfsf_crede
+   WHERE empresa EQ 'VC'.
+
+  READ TABLE t_credenciais INTO w_credenciais INDEX 1.
+
+  SELECT *
+    INTO TABLE t_metric
+    FROM ztbhr_sfvc_metri.
+
+  SORT t_metric BY layout.
+
+  LOOP AT t_metric INTO w_metric.
+
+    IF w_metric-layout NE w_old-layout AND
+       w_old-layout   NE space.
+
+      w_sfobject-entity = w_old-layout.
+      w_sfobject-data   = t_data[].
+      APPEND w_sfobject TO t_sfobject.
+      CLEAR: w_sfobject, t_data[].
+
+      PERFORM zf_call_upsert USING w_old-layout
+                                    w_credenciais
+                                    t_sfobject[].
+
+      CLEAR: t_sfobject.
+
+    ENDIF.
+
+    add_data: 'subguid'               w_metric-subguid,
+              'goalid'                w_metric-goalid,
+              'masterid'              w_metric-masterid,
+              'rating'                w_metric-rating,
+              'achievement'           w_metric-achievement,
+              'description'           w_metric-description.
+
+    w_old = w_metric.
+
+  ENDLOOP.
+
+ENDFORM.                    "zf_atualizar_metric_sf
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_atualizar_metas_sf
+*&---------------------------------------------------------------------*
+FORM zf_atualizar_mile_sf.
+
+  DATA: t_mile         TYPE TABLE OF ztbhr_sfvc_mile,
+        t_data         TYPE zsfi_dt_operation_request_tab2, "*****
+        w_data         LIKE LINE OF t_data,
+        w_mile         LIKE LINE OF t_mile,
+        w_old          LIKE w_mile,
+        w_sfobject     TYPE LINE OF zsfi_dt_operation_request__tab,
+        t_sfobject     TYPE zsfi_dt_operation_request__tab.
+
+  DATA: w_credenciais       LIKE LINE OF t_credenciais,
+        w_goallibraryentry  LIKE LINE OF t_goallibraryentry.
+
+  DATA: l_batchsize TYPE i,
+        l_sessionid TYPE string.
+
+  DEFINE add_data.
+    w_data-key = &1.
+    w_data-value = &2.
+    append w_data to t_data.
+    clear w_data.
+  END-OF-DEFINITION.
+
+  SELECT *
+    INTO TABLE t_credenciais
+    FROM ztbhr_sfsf_crede
+   WHERE empresa EQ 'VC'.
+
+  READ TABLE t_credenciais INTO w_credenciais INDEX 1.
+
+  SELECT *
+    INTO TABLE t_mile
+    FROM ztbhr_sfvc_mile.
+
+  SORT t_mile BY layout.
+
+  LOOP AT t_mile INTO w_mile.
+
+    IF w_mile-layout NE w_old-layout AND
+       w_old-layout   NE space.
+
+      w_sfobject-entity = w_old-layout.
+      w_sfobject-data   = t_data[].
+      APPEND w_sfobject TO t_sfobject.
+      CLEAR: w_sfobject, t_data[].
+
+      PERFORM zf_call_upsert USING w_old-layout
+                                    w_credenciais
+                                    t_sfobject[].
+
+      CLEAR: t_sfobject.
+
+    ENDIF.
+
+    add_data: 'guid'                w_mile-guid,
+              'goalid'              w_mile-goalid,
+              'masterid'            w_mile-masterid,
+              'customnum1'          w_mile-customnum1,
+              'customnum2'          w_mile-customnum2,
+              'customnum3'          w_mile-customnum3,
+              'actualnumber'        w_mile-actualnumber,
+              'rating'              w_mile-rating.
+
+    w_old = w_mile.
+
+  ENDLOOP.
+
+ENDFORM.                    "zf_atualizar_mile_sf
 
 *  &---------------------------------------------------------------------*
 *  &      Form  ZF_LOGIN_SUCCESSFACTORS
@@ -764,130 +904,126 @@ ENDFORM.                    " ZF_DECODE_PASS
 *  &---------------------------------------------------------------------*
 *  &      Form  ZF_CALL_UPSERT
 *  &---------------------------------------------------------------------*
-  FORM zf_call_upsert  USING i_entity
-                             p_credenciais LIKE LINE OF t_credenciais
-                             p_sfobject    TYPE zsfi_dt_operation_request__tab.
+FORM zf_call_upsert  USING i_entity
+                           p_credenciais LIKE LINE OF t_credenciais
+                           p_sfobject    TYPE zsfi_dt_operation_request__tab.
 
-    DATA: l_count        TYPE i,
-          l_count_tot    TYPE i,
-          l_lote         TYPE i,
-          l_o_erro       TYPE REF TO cx_root,
-          l_o_erro_apl   TYPE REF TO cx_ai_application_fault,
-          l_o_erro_fault TYPE REF TO zsfi_cx_dt_fault,
-          l_text         TYPE string,
-          l_sessionid    TYPE string,
-          l_batchsize    TYPE i,
-          l_tabix        TYPE sy-tabix,
-          l_o_upsert     TYPE REF TO zsfi_co_si_upsert_request,
-          w_request      TYPE zsfi_mt_operation_request,
-          w_response     TYPE zsfi_mt_operation_response,
-          w_result       TYPE LINE OF zsfi_mt_operation_response-mt_operation_response-object_edit_result,
-          w_sfobject     TYPE LINE OF zsfi_dt_operation_request__tab,
-          t_sfobject     TYPE zsfi_dt_operation_request__tab,
-          w_sfparam      LIKE LINE OF w_request-mt_operation_request-processing_param,
-          t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
-          w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
-          w_sfobject_data     LIKE LINE OF w_sfobject-data.
+  DATA: l_count        TYPE i,
+        l_count_tot    TYPE i,
+        l_lote         TYPE i,
+        l_o_erro       TYPE REF TO cx_root,
+        l_o_erro_apl   TYPE REF TO cx_ai_application_fault,
+        l_o_erro_fault TYPE REF TO zsfi_cx_dt_fault,
+        l_text         TYPE string,
+        l_sessionid    TYPE string,
+        l_batchsize    TYPE i,
+        l_tabix        TYPE sy-tabix,
+        l_o_upsert     TYPE REF TO zsfi_co_si_upsert_request,
+        w_request      TYPE zsfi_mt_operation_request,
+        w_response     TYPE zsfi_mt_operation_response,
+        w_result       TYPE LINE OF zsfi_mt_operation_response-mt_operation_response-object_edit_result,
+        w_sfobject     TYPE LINE OF zsfi_dt_operation_request__tab,
+        t_sfobject     TYPE zsfi_dt_operation_request__tab,
+        w_sfparam      LIKE LINE OF w_request-mt_operation_request-processing_param,
+        t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
+        w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
+        w_sfobject_data     LIKE LINE OF w_sfobject-data.
 
-    IF lines( p_sfobject ) <= p_credenciais-batchsize.
-      l_count = 1.
-    ELSE.
-      l_count = lines( p_sfobject ) / p_credenciais-batchsize.
-    ENDIF.
+  IF lines( p_sfobject ) <= p_credenciais-batchsize.
+    l_count = 1.
+  ELSE.
+    l_count = lines( p_sfobject ) / p_credenciais-batchsize.
+  ENDIF.
 
-    DO l_count TIMES.
+  DO l_count TIMES.
 
-      LOOP AT p_sfobject INTO w_sfobject FROM l_count_tot.
+    LOOP AT p_sfobject INTO w_sfobject FROM l_count_tot.
 
-        l_tabix = sy-tabix.
-        ADD 1 TO l_lote.
-        ADD 1 TO l_count_tot.
+      l_tabix = sy-tabix.
+      ADD 1 TO l_lote.
+      ADD 1 TO l_count_tot.
 
-        APPEND w_sfobject TO t_sfobject.
+      APPEND w_sfobject TO t_sfobject.
 *        DELETE p_sfobject INDEX l_tabix.
-        CLEAR w_sfobject.
+      CLEAR w_sfobject.
 
-        IF l_lote     EQ p_credenciais-batchsize OR
-           l_count_tot  EQ lines( p_sfobject ).
+      IF l_lote     EQ p_credenciais-batchsize OR
+         l_count_tot  EQ lines( p_sfobject ).
 
-          PERFORM zf_login_successfactors USING p_credenciais-empresa
-                                       CHANGING l_sessionid
-                                                l_batchsize.
+        PERFORM zf_login_successfactors USING p_credenciais-empresa
+                                     CHANGING l_sessionid
+                                              l_batchsize.
 
-          TRY.
+        TRY.
 
-              CREATE OBJECT l_o_upsert.
+            CREATE OBJECT l_o_upsert.
 
-              w_request-mt_operation_request-entity     = i_entity.
-              w_request-mt_operation_request-session_id = l_sessionid.
-              w_request-mt_operation_request-sfobject   = t_sfobject.
+            w_request-mt_operation_request-entity     = i_entity.
+            w_request-mt_operation_request-session_id = l_sessionid.
+            w_request-mt_operation_request-sfobject   = t_sfobject.
 
-              CALL METHOD l_o_upsert->si_upsert_request
-                EXPORTING
-                  output = w_request
-                IMPORTING
-                  input  = w_response.
+            CALL METHOD l_o_upsert->si_upsert_request
+              EXPORTING
+                output = w_request
+              IMPORTING
+                input  = w_response.
 
-              IF w_response-mt_operation_response-job_status EQ 'ERROR'.
+            IF w_response-mt_operation_response-job_status EQ 'ERROR'.
 
-                PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
+              PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
 
-                LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE error_status EQ 'ERROR'.
-                  PERFORM zf_log USING space c_error w_result-message space.
-                ENDLOOP.
-
-              ELSE.
-
-                PERFORM zf_log USING space c_success 'Upsert Efetuado com Sucesso para a Empresa'(023) p_credenciais-empresa.
-
-              ENDIF.
-
-              LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE edit_status NE 'ERROR'.
-
-                IF NOT w_result-id IS INITIAL.
-
-                  ADD 1 TO w_result-index.
-                  READ TABLE t_sfobject INTO w_sfobject INDEX w_result-index.
-                  READ TABLE w_sfobject-data INTO w_sfobject_data WITH KEY key = 'userId'.
-
-              ENDIF.
-
+              LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE error_status EQ 'ERROR'.
+                PERFORM zf_log USING space c_error w_result-message space.
               ENDLOOP.
+
+            ELSE.
+
+              PERFORM zf_log USING space c_success 'Upsert Efetuado com Sucesso para a Empresa'(023) p_credenciais-empresa.
+
+            ENDIF.
+
+            LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE edit_status NE 'ERROR'.
+
+              IF NOT w_result-id IS INITIAL.
+
+                ADD 1 TO w_result-index.
+                READ TABLE t_sfobject INTO w_sfobject INDEX w_result-index.
+                READ TABLE w_sfobject-data INTO w_sfobject_data WITH KEY key = 'userId'.
+
+              ENDIF.
+
+            ENDLOOP.
 
 *              MODIFY ztbhr_sfsf_user FROM TABLE t_ztbhr_sfsf_user.
 
-            CATCH cx_ai_system_fault INTO l_o_erro.
-              PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
+          CATCH cx_ai_system_fault INTO l_o_erro.
+            PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
 
-              l_text = l_o_erro->get_text( ).
-              PERFORM zf_log USING space c_error l_text space.
+            l_text = l_o_erro->get_text( ).
+            PERFORM zf_log USING space c_error l_text space.
 
-            CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
-              PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
+          CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
+            PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
 
-              l_text = l_o_erro_fault->standard-fault_text.
-              PERFORM zf_log USING space c_error l_text space.
+            l_text = l_o_erro_fault->standard-fault_text.
+            PERFORM zf_log USING space c_error l_text space.
 
-            CATCH cx_ai_application_fault INTO l_o_erro_apl.
-              PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
+          CATCH cx_ai_application_fault INTO l_o_erro_apl.
+            PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) p_credenciais-empresa.
 
-              l_text = l_o_erro_apl->get_text( ).
-              PERFORM zf_log USING space c_error l_text space.
+            l_text = l_o_erro_apl->get_text( ).
+            PERFORM zf_log USING space c_error l_text space.
 
-          ENDTRY.
+        ENDTRY.
 
-*  /    Efetua o Logout no SuccessFactors.
-          PERFORM zf_logout_successfactors CHANGING l_sessionid.
-*  /
+        CLEAR: l_lote,
+               w_sfobject,
+               t_sfobject.
 
-          CLEAR: l_lote,
-                 w_sfobject,
-                 t_sfobject.
+      ENDIF.
 
-        ENDIF.
+    ENDLOOP.
 
-      ENDLOOP.
+  ENDDO.
 
-    ENDDO.
-
-  ENDFORM.                    " ZF_CALL_UPSERT
+ENDFORM.                    " ZF_CALL_UPSERT
