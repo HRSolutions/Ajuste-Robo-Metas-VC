@@ -251,9 +251,15 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
 *  ----------------------------------------------------------------------*
 START-OF-SELECTION.
 
+  SELECT *
+    INTO TABLE t_credenciais
+    FROM ztbhr_sfsf_crede.
+
   PERFORM zf_carregar_arquivo.
 
   PERFORM zf_split_dados.
+
+  PERFORM zf_query_goal.
 
   PERFORM zf_verificar_metas.
 
@@ -510,13 +516,13 @@ FORM zf_verificar_metas .
         t_milestone         BY guid,
         t_metriclookupentry BY guid.
 
-  LOOP AT t_metas ASSIGNING <fs_metas> where not library is initial.
+  LOOP AT t_metas ASSIGNING <fs_metas> WHERE NOT library IS INITIAL.
 
     READ TABLE t_goallibraryentry INTO w_goallibraryentry WITH KEY guid = <fs_metas>-library BINARY SEARCH.
 
     <fs_metas>-actual_achieveme = w_goallibraryentry-achievement.
 
-    LOOP AT t_mile ASSIGNING <fs_milestone> where goalid eq <fs_metas>-goalid.
+    LOOP AT t_mile ASSIGNING <fs_milestone> WHERE goalid EQ <fs_metas>-id.
 
       READ TABLE t_milestone INTO w_milestone WITH KEY guid = <fs_milestone>-guid BINARY SEARCH.
 
@@ -757,17 +763,15 @@ FORM zf_login_successfactors  USING    p_empresa
                               CHANGING c_sessionid
                                        c_batchsize.
 
-  DATA: l_o_login TYPE REF TO zsfi_co_si_login_request,
-        l_o_erro  TYPE REF TO cx_root,
-        l_text    TYPE string.
+  TYPES: BEGIN OF y_return_login,
+           erro      TYPE c LENGTH 1,
+           msg       TYPE string,
+           sessionid TYPE string,
+         END OF y_return_login.
 
-  DATA: w_credenciais LIKE LINE OF t_credenciais,
-        w_request     TYPE zsfi_mt_login_request,
-        w_response    TYPE zsfi_mt_login_response.
-
-*  / Lógica responsável por efetuar o Login no SuccessFactors
-
-  CREATE OBJECT l_o_login.
+  DATA: w_login             TYPE zmt_login_request,
+        w_return_login      TYPE y_return_login,
+        w_credenciais       LIKE LINE OF t_credenciais.
 
 *  / Seleciona os dados de acesso da empresa
   READ TABLE t_credenciais INTO w_credenciais WITH KEY empresa = p_empresa BINARY SEARCH.
@@ -780,43 +784,14 @@ FORM zf_login_successfactors  USING    p_empresa
   PERFORM zf_decode_pass CHANGING w_credenciais-password.
 *  /
 
-  c_batchsize = w_credenciais-batchsize.
+  w_login-mt_login_request-credential-company_id = w_credenciais-companyid.
+  w_login-mt_login_request-credential-username   = w_credenciais-username.
+  w_login-mt_login_request-credential-password   = w_credenciais-password.
 
-*  / Se não foi cadastrado um BatchSize para a empresa, assume o valor Default
-  IF c_batchsize IS INITIAL.
-    c_batchsize = '200'.
-  ENDIF.
-*  /
+  PERFORM zf_login_success_factor(zvcrhr0006_sf_vc) USING w_login
+                                                 CHANGING w_return_login.
 
-  w_request-mt_login_request-credential-company_id = w_credenciais-companyid.
-  w_request-mt_login_request-credential-username   = w_credenciais-username.
-  w_request-mt_login_request-credential-password   = w_credenciais-password.
-
-  TRY.
-
-      CALL METHOD l_o_login->si_login_request
-        EXPORTING
-          output = w_request
-        IMPORTING
-          input  = w_response.
-
-      IF w_response-mt_login_response-session_id IS INITIAL.
-        PERFORM zf_log USING space c_error 'Erro ao Efetuar Login para a Empresa'(015) p_empresa.
-      ELSE.
-        c_sessionid = w_response-mt_login_response-session_id.
-        PERFORM zf_log USING space c_success 'Login Efetuado com Sucesso para a Empresa'(016) p_empresa.
-        PERFORM zf_log USING space c_success 'SessionID'(017) c_sessionid.
-      ENDIF.
-
-    CATCH cx_ai_system_fault INTO l_o_erro.
-      PERFORM zf_log USING space c_error 'Erro ao Efetuar Login para a Empresa'(015) p_empresa.
-
-      l_text = l_o_erro->get_text( ).
-      PERFORM zf_log USING space c_error l_text space.
-
-  ENDTRY.
-
-*  /
+  c_sessionid = w_return_login-sessionid.
 
 ENDFORM.                    " ZF_LOGIN_SUCCESSFACTORS
 
@@ -1027,3 +1002,73 @@ FORM zf_call_upsert  USING i_entity
   ENDDO.
 
 ENDFORM.                    " ZF_CALL_UPSERT
+
+*  &---------------------------------------------------------------------*
+*  &      Form  ZF_QUERY_GOAL
+*  &---------------------------------------------------------------------*
+FORM zf_query_goal.
+
+  DATA: l_count        TYPE i,
+        l_count_tot    TYPE i,
+        l_lote         TYPE i,
+        l_o_erro       TYPE REF TO cx_root,
+        l_o_erro_apl   TYPE REF TO cx_ai_application_fault,
+        l_o_erro_fault TYPE REF TO zsfi_cx_dt_fault,
+        l_text         TYPE string,
+        l_sessionid    TYPE string,
+        l_batchsize    TYPE i,
+        l_tabix        TYPE sy-tabix,
+        l_o_query      TYPE REF TO zsfi_co_si_query_goal_vc,
+        w_request      TYPE zsf_mt_query_user_request,
+        w_response     TYPE zsfi_mt_query_goal10_response,
+        w_result       TYPE LINE OF zsfi_mt_operation_response-mt_operation_response-object_edit_result,
+        w_sfobject     TYPE LINE OF zsfi_dt_operation_request__tab,
+        t_sfobject     TYPE zsfi_dt_operation_request__tab,
+        t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
+        w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
+        w_sfobject_data     LIKE LINE OF w_sfobject-data,
+        w_query             LIKE w_request-mt_query_user_request-query.
+
+  PERFORM zf_login_successfactors USING 'VC'
+                               CHANGING l_sessionid
+                                        l_batchsize.
+
+  TRY.
+
+      CREATE OBJECT l_o_query.
+
+      w_query-query_string = 'select id, guid, masterid, modifier, currentOwner, numbering,'
+                &&  'goaltype, flag, parentid, userid, username, status, description, library,'
+                &&  'fromlibrary, lastModified, name, field_desc, metric, actual_achievement,'
+                &&  'rating, goal_score, bizx_target, interpolacao, bizx_actual, category, metricLookupAchievementType'
+                &&  'from Goal$303'.
+      w_request-mt_query_user_request-query      = w_query.
+      w_request-mt_query_user_request-session_id = 'JSESSIONID=' && l_sessionid.
+
+      CALL METHOD l_o_query->si_query_goal10
+        EXPORTING
+          output = w_request
+        IMPORTING
+          input  = w_response.
+
+    CATCH cx_ai_system_fault INTO l_o_erro.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+      l_text = l_o_erro->get_text( ).
+      PERFORM zf_log USING space c_error l_text space.
+
+    CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+      l_text = l_o_erro_fault->standard-fault_text.
+      PERFORM zf_log USING space c_error l_text space.
+
+    CATCH cx_ai_application_fault INTO l_o_erro_apl.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+      l_text = l_o_erro_apl->get_text( ).
+      PERFORM zf_log USING space c_error l_text space.
+
+  ENDTRY.
+
+ENDFORM.                    " ZF_QUERY_GOAL
