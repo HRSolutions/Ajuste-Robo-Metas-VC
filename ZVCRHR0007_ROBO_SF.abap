@@ -520,9 +520,7 @@ FORM zf_verificar_metas .
   LOOP AT t_metas ASSIGNING <fs_metas> WHERE NOT library IS INITIAL.
 
     CLEAR w_goallibraryentry.
-    READ TABLE t_goallibraryentry INTO w_goallibraryentry WITH KEY guid = <fs_metas>-library BINARY SEARCH.
-
-    IF sy-subrc EQ 0.
+    LOOP AT t_goallibraryentry INTO w_goallibraryentry WHERE guid = <fs_metas>-library.
 
       <fs_metas>-actual_achieveme = w_goallibraryentry-achievement.
 
@@ -542,7 +540,7 @@ FORM zf_verificar_metas .
 
       ENDLOOP.
 
-    ENDIF.
+    ENDLOOP.
 
   ENDLOOP.
 
@@ -627,6 +625,17 @@ FORM zf_atualizar_metas_sf.
 
   ENDLOOP.
 
+  IF NOT t_sfobject[] IS INITIAL.
+
+    PERFORM zf_call_upsert USING w_metas-layout
+                                 w_credenciais
+                                 t_sfobject[].
+
+    CLEAR: t_sfobject.
+
+  ENDIF.
+
+
 ENDFORM.                    "zf_atualizar_metas_sf
 
 *&---------------------------------------------------------------------*
@@ -697,6 +706,16 @@ FORM zf_atualizar_metric_sf.
 
   ENDLOOP.
 
+  IF NOT t_sfobject[] IS INITIAL.
+
+    PERFORM zf_call_upsert USING w_metric-layout
+                                 w_credenciais
+                                 t_sfobject[].
+
+    CLEAR: t_sfobject.
+
+  ENDIF.
+
 ENDFORM.                    "zf_atualizar_metric_sf
 
 *&---------------------------------------------------------------------*
@@ -751,20 +770,20 @@ FORM zf_atualizar_mile_sf.
 
     ENDIF.
 
-    TRANSLATE w_mile-customnum1   USING '. '.
-    TRANSLATE w_mile-customnum2   USING '. '.
-    TRANSLATE w_mile-customnum3   USING '. '.
-    TRANSLATE w_mile-actualnumber USING '. '.
-
-    CONDENSE w_mile-customnum1    NO-GAPS.
-    CONDENSE w_mile-customnum2    NO-GAPS.
-    CONDENSE w_mile-customnum3    NO-GAPS.
-    CONDENSE w_mile-actualnumber  NO-GAPS.
-
-    TRANSLATE w_mile-customnum1   USING ',.'.
-    TRANSLATE w_mile-customnum2   USING ',.'.
-    TRANSLATE w_mile-customnum3   USING ',.'.
-    TRANSLATE w_mile-actualnumber USING ',.'.
+*    TRANSLATE w_mile-customnum1   USING '. '.
+*    TRANSLATE w_mile-customnum2   USING '. '.
+*    TRANSLATE w_mile-customnum3   USING '. '.
+*    TRANSLATE w_mile-actualnumber USING '. '.
+*
+*    CONDENSE w_mile-customnum1    NO-GAPS.
+*    CONDENSE w_mile-customnum2    NO-GAPS.
+*    CONDENSE w_mile-customnum3    NO-GAPS.
+*    CONDENSE w_mile-actualnumber  NO-GAPS.
+*
+*    TRANSLATE w_mile-customnum1   USING ',.'.
+*    TRANSLATE w_mile-customnum2   USING ',.'.
+*    TRANSLATE w_mile-customnum3   USING ',.'.
+*    TRANSLATE w_mile-actualnumber USING ',.'.
 
     IF w_mile-customnum1 IS INITIAL.
       w_mile-customnum1 = '0.00'.
@@ -791,12 +810,23 @@ FORM zf_atualizar_mile_sf.
 
     w_sfobject-entity = w_mile-layout.
     w_sfobject-data   = t_data[].
-    APPEND w_sfobject TO t_sfobject.
+
+    IF NOT w_mile-guid IS INITIAL.
+      APPEND w_sfobject TO t_sfobject.
+    ENDIF.
     CLEAR: w_sfobject, t_data[].
 
     w_old = w_mile.
 
   ENDLOOP.
+
+  IF NOT t_sfobject[] IS INITIAL.
+    PERFORM zf_call_upsert USING w_mile-layout
+                                 w_credenciais
+                                 t_sfobject[].
+
+    CLEAR: t_sfobject.
+  ENDIF.
 
 ENDFORM.                    "zf_atualizar_mile_sf
 
