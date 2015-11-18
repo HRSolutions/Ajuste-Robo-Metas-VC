@@ -544,7 +544,9 @@ FORM zf_verificar_metas .
         t_milestone         BY guid,
         t_metriclookupentry BY guid.
 
-  LOOP AT t_metas ASSIGNING <fs_metas> WHERE NOT library IS INITIAL.
+  DELETE t_metas WHERE library IS INITIAL.
+
+  LOOP AT t_metas ASSIGNING <fs_metas>.
 
     CLEAR w_goallibraryentry.
     LOOP AT t_goallibraryentry INTO w_goallibraryentry WHERE guid = <fs_metas>-library.
@@ -630,6 +632,8 @@ FORM zf_atualizar_metas_sf.
     INTO TABLE t_metas
     FROM ztbhr_sfvc_metas.
 
+  DELETE t_metas WHERE library IS INITIAL.
+
   SORT t_metas BY layout.
 
   LOOP AT t_metas INTO w_metas.
@@ -666,7 +670,12 @@ FORM zf_atualizar_metas_sf.
     w_sfobject-entity = w_metas-layout.
     w_sfobject-id     = w_metas-id.
     w_sfobject-data   = t_data[].
-    APPEND w_sfobject TO t_sfobject.
+
+    IF w_metas-name IS INITIAL OR
+       w_metas-field_desc IS INITIAL.
+    ELSE.
+      APPEND w_sfobject TO t_sfobject.
+    ENDIF.
     CLEAR: w_sfobject, t_data[].
 
     w_old = w_metas.
@@ -1152,58 +1161,13 @@ FORM zf_query_goal USING p_entity.
         t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
         w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
         w_query             LIKE w_request-mt_query_user_request-query,
-        w_sfobject          LIKE LINE OF w_response-mt_query_goal10_response-sfobject.
+        w_sfobject          LIKE LINE OF w_response-mt_query_goal10_response-sfobject,
+        l_has_more          TYPE c,
+        l_deleted           TYPE string,
+        l_goal              TYPE string,
+        l_username          TYPE string.
 
-  PERFORM zf_mensagem_progresso USING 'Selecionando ' p_entity.
-
-  PERFORM zf_login_successfactors USING 'VC'
-                               CHANGING l_sessionid
-                                        l_batchsize.
-
-
-
-  TRY.
-
-      CREATE OBJECT l_o_query.
-
-      CONCATENATE 'select id, guid, masterid, modifier, currentOwner, numbering,'
-                  'goaltype, flag, parentid, userid, username, status, description, library,'
-                  'fromlibrary, lastModified, name, field_desc, metric, actual_achievement,'
-                  'rating, goal_score, bizx_target, interpolacao, bizx_actual, category, metricLookupAchievementType'
-                  ' from '
-                  p_entity
-             INTO w_query-query_string SEPARATED BY space.
-
-      w_request-mt_query_user_request-query      = w_query.
-      w_request-mt_query_user_request-session_id = 'JSESSIONID=' && l_sessionid.
-
-      CALL METHOD l_o_query->si_query_goal10
-        EXPORTING
-          output = w_request
-        IMPORTING
-          input  = w_response.
-
-    CATCH cx_ai_system_fault INTO l_o_erro.
-      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
-
-      l_text = l_o_erro->get_text( ).
-      PERFORM zf_log USING space c_error l_text space.
-
-    CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
-      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
-
-      l_text = l_o_erro_fault->standard-fault_text.
-      PERFORM zf_log USING space c_error l_text space.
-
-    CATCH cx_ai_application_fault INTO l_o_erro_apl.
-      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
-
-      l_text = l_o_erro_apl->get_text( ).
-      PERFORM zf_log USING space c_error l_text space.
-
-  ENDTRY.
-
-  LOOP AT w_response-mt_query_goal10_response-sfobject INTO w_sfobject.
+  DEFINE add_internal_table.
 
     w_metas_sf-layout = w_sfobject-type.
     w_metas_sf-id = w_sfobject-id.
@@ -1240,10 +1204,132 @@ FORM zf_query_goal USING p_entity.
     w_metas_sf-bizx_actual = w_sfobject-bizx_actual.
     w_metas_sf-category = w_sfobject-category.
 
-    APPEND w_metas_sf TO t_metas_sf.
-    CLEAR w_metas_sf.
+    append w_metas_sf to t_metas_sf.
+    clear w_metas_sf.
+
+  END-OF-DEFINITION.
+
+  PERFORM zf_mensagem_progresso USING 'Selecionando ' p_entity.
+
+  PERFORM zf_login_successfactors USING 'VC'
+                               CHANGING l_sessionid
+                                        l_batchsize.
+
+
+
+  TRY.
+
+      CREATE OBJECT l_o_query.
+      l_deleted = text-001 && 'deleted'&& text-001.
+      l_goal = text-001 && 'GOAL-12051' && text-001.
+      l_username = text-001 && 'vid_vcnet@paulorlc'&& text-001.
+
+      CONCATENATE 'select id, guid, masterid, modifier, currentOwner, numbering,'
+                  'goaltype, flag, parentid, userid, username, status, description, library,'
+                  'fromlibrary, lastModified, name, field_desc, metric, actual_achievement,'
+                  'rating, goal_score, bizx_target, interpolacao, bizx_actual, category, metricLookupAchievementType'
+                  ' from '
+                  p_entity
+                  'where status != '
+                  l_deleted
+                  'and id !=' l_goal
+*                  'and username =' l_username
+             INTO w_query-query_string SEPARATED BY space.
+
+      w_request-mt_query_user_request-query      = w_query.
+      w_request-mt_query_user_request-session_id = 'JSESSIONID=' && l_sessionid.
+
+      CALL METHOD l_o_query->si_query_goal10
+        EXPORTING
+          output = w_request
+        IMPORTING
+          input  = w_response.
+
+    CATCH cx_ai_system_fault INTO l_o_erro.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+      l_text = l_o_erro->get_text( ).
+      PERFORM zf_log USING space c_error l_text space.
+
+    CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+      l_text = l_o_erro_fault->standard-fault_text.
+      PERFORM zf_log USING space c_error l_text space.
+
+    CATCH cx_ai_application_fault INTO l_o_erro_apl.
+      PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+      l_text = l_o_erro_apl->get_text( ).
+      PERFORM zf_log USING space c_error l_text space.
+
+  ENDTRY.
+
+  LOOP AT w_response-mt_query_goal10_response-sfobject INTO w_sfobject.
+
+    add_internal_table.
 
   ENDLOOP.
+
+*/ QueryMore
+  DATA: l_query_more        TYPE REF TO zsfi_co_si_querymore_goal_vc,
+        w_request_more      TYPE zsfi_mt_query_more_request,
+        w_response_more     TYPE zsfi_mt_query_more_goal10_resp,
+        l_tentativa         TYPE i.
+
+  l_has_more = w_response-mt_query_goal10_response-has_more.
+
+  WHILE l_has_more EQ abap_true.
+
+    w_request_more-mt_query_more_request-session_id = w_request-mt_query_user_request-session_id.
+    w_request_more-mt_query_more_request-query-query_session_id = w_response-mt_query_goal10_response-query_session_id.
+
+    TRY.
+
+        CREATE OBJECT l_query_more.
+
+        CALL METHOD l_query_more->si_query_goal10
+          EXPORTING
+            output = w_request_more
+          IMPORTING
+            input  = w_response_more.
+
+      CATCH cx_ai_system_fault INTO l_o_erro.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+        l_text = l_o_erro->get_text( ).
+        PERFORM zf_log USING space c_error l_text space.
+
+      CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+        l_text = l_o_erro_fault->standard-fault_text.
+        PERFORM zf_log USING space c_error l_text space.
+
+      CATCH cx_ai_application_fault INTO l_o_erro_apl.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+        l_text = l_o_erro_apl->get_text( ).
+        PERFORM zf_log USING space c_error l_text space.
+
+    ENDTRY.
+
+    LOOP AT w_response_more-mt_query_more_goal10_response-sfobject INTO w_sfobject.
+
+      add_internal_table.
+
+    ENDLOOP.
+
+    IF l_tentativa EQ 0.
+      l_has_more = abap_true.
+    ELSE.
+      l_has_more = w_response_more-mt_query_more_goal10_response-has_more.
+    ENDIF.
+
+    ADD 1 TO l_tentativa.
+
+  ENDWHILE.
+*/
 
 ENDFORM.                    " ZF_QUERY_GOAL
 
@@ -1330,7 +1416,30 @@ FORM zf_query_milestone USING p_entity.
         t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
         w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
         w_query             LIKE w_request-mt_query_user_request-query,
-        w_sfobject          LIKE LINE OF w_response-mt_query_milestone_response-sfobject.
+        w_sfobject          LIKE LINE OF w_response-mt_query_milestone_response-sfobject,
+        l_has_more          TYPE c.
+
+  DEFINE add_internal_table.
+
+    w_miles_sf-layout = w_sfobject-type.
+    w_miles_sf-id = w_sfobject-id.
+    w_miles_sf-guid = w_sfobject-guid.
+    w_miles_sf-goalid = w_sfobject-goal_id.
+    w_miles_sf-masterid = w_sfobject-master_id.
+    w_miles_sf-lastmodified = w_sfobject-last_modified.
+    w_miles_sf-modifier = w_sfobject-modifier.
+    w_miles_sf-displayorder = w_sfobject-display_order.
+    w_miles_sf-field_desc = w_sfobject-field_desc.
+    w_miles_sf-customnum1 = w_sfobject-custom_num1.
+    w_miles_sf-customnum2 = w_sfobject-custom_num2.
+    w_miles_sf-customnum3 = w_sfobject-custom_num3.
+    w_miles_sf-actualnumber = w_sfobject-actual_number.
+    w_miles_sf-rating = w_sfobject-rating.
+
+    append w_miles_sf to t_miles_sf.
+    clear w_miles_sf.
+
+  END-OF-DEFINITION.
 
   PERFORM zf_mensagem_progresso USING 'Selecionando ' p_entity.
 
@@ -1380,25 +1489,70 @@ FORM zf_query_milestone USING p_entity.
 
   LOOP AT w_response-mt_query_milestone_response-sfobject INTO w_sfobject.
 
-    w_miles_sf-layout = w_sfobject-type.
-    w_miles_sf-id = w_sfobject-id.
-    w_miles_sf-guid = w_sfobject-guid.
-    w_miles_sf-goalid = w_sfobject-goal_id.
-    w_miles_sf-masterid = w_sfobject-master_id.
-    w_miles_sf-lastmodified = w_sfobject-last_modified.
-    w_miles_sf-modifier = w_sfobject-modifier.
-    w_miles_sf-displayorder = w_sfobject-display_order.
-    w_miles_sf-field_desc = w_sfobject-field_desc.
-    w_miles_sf-customnum1 = w_sfobject-custom_num1.
-    w_miles_sf-customnum2 = w_sfobject-custom_num2.
-    w_miles_sf-customnum3 = w_sfobject-custom_num3.
-    w_miles_sf-actualnumber = w_sfobject-actual_number.
-    w_miles_sf-rating = w_sfobject-rating.
-
-    APPEND w_miles_sf TO t_miles_sf.
-    CLEAR w_miles_sf.
+    add_internal_table.
 
   ENDLOOP.
+
+*/ QueryMore
+  DATA: l_query_more        TYPE REF TO zsfi_co_si_querymore_milestone,
+        w_request_more      TYPE zsfi_mt_query_more_request,
+        w_response_more     TYPE zsfi_mt_query_more_milestone_r,
+        l_tentativa         TYPE i.
+
+  l_has_more = w_response-mt_query_milestone_response-has_more.
+
+  WHILE l_has_more EQ abap_true.
+
+    w_request_more-mt_query_more_request-session_id = w_request-mt_query_user_request-session_id.
+    w_request_more-mt_query_more_request-query-query_session_id = w_response-mt_query_milestone_response-query_session_id.
+
+    TRY.
+
+        CREATE OBJECT l_query_more.
+
+        CALL METHOD l_query_more->si_query_goal10
+          EXPORTING
+            output = w_request_more
+          IMPORTING
+            input  = w_response_more.
+
+      CATCH cx_ai_system_fault INTO l_o_erro.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+        l_text = l_o_erro->get_text( ).
+        PERFORM zf_log USING space c_error l_text space.
+
+      CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+        l_text = l_o_erro_fault->standard-fault_text.
+        PERFORM zf_log USING space c_error l_text space.
+
+      CATCH cx_ai_application_fault INTO l_o_erro_apl.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+        l_text = l_o_erro_apl->get_text( ).
+        PERFORM zf_log USING space c_error l_text space.
+
+    ENDTRY.
+
+    LOOP AT w_response_more-mt_query_more_milestone_respon-sfobject INTO w_sfobject.
+
+      add_internal_table.
+
+    ENDLOOP.
+
+    IF l_tentativa EQ 0.
+      l_has_more = abap_true.
+    ELSE.
+      l_has_more = w_response_more-mt_query_more_milestone_respon-has_more.
+    ENDIF.
+
+    ADD 1 TO l_tentativa.
+
+  ENDWHILE.
+
+*/
 
 ENDFORM.                    " ZF_QUERY_MILESTONE
 
@@ -1578,7 +1732,26 @@ FORM zf_query_metriclookup USING p_entity.
         t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
         w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
         w_query             LIKE w_request-mt_query_user_request-query,
-        w_sfobject          LIKE LINE OF w_response-mt_query_metric_lookup_respons-sfobject.
+        w_sfobject          LIKE LINE OF w_response-mt_query_metric_lookup_respons-sfobject,
+        l_has_more          TYPE c.
+
+  DEFINE add_internal_table.
+
+    w_metric_sf-layout = w_sfobject-type.
+    w_metric_sf-id = w_sfobject-id.
+    w_metric_sf-subguid = w_sfobject-subguid.
+    w_metric_sf-goalid = w_sfobject-goal_id.
+    w_metric_sf-masterid = w_sfobject-master_id.
+    w_metric_sf-lastmodified = w_sfobject-last_modified.
+    w_metric_sf-displayorder = w_sfobject-display_order.
+    w_metric_sf-rating = w_sfobject-rating.
+    w_metric_sf-achievement = w_sfobject-achievement.
+    w_metric_sf-description = w_sfobject-description.
+
+    append w_metric_sf to t_metric_sf.
+    clear w_metric_sf.
+
+  END-OF-DEFINITION.
 
   PERFORM zf_mensagem_progresso USING 'Selecionando ' p_entity.
 
@@ -1627,21 +1800,69 @@ FORM zf_query_metriclookup USING p_entity.
 
   LOOP AT w_response-mt_query_metric_lookup_respons-sfobject INTO w_sfobject.
 
-    w_metric_sf-layout = w_sfobject-type.
-    w_metric_sf-id = w_sfobject-id.
-    w_metric_sf-subguid = w_sfobject-subguid.
-    w_metric_sf-goalid = w_sfobject-goal_id.
-    w_metric_sf-masterid = w_sfobject-master_id.
-    w_metric_sf-lastmodified = w_sfobject-last_modified.
-    w_metric_sf-displayorder = w_sfobject-display_order.
-    w_metric_sf-rating = w_sfobject-rating.
-    w_metric_sf-achievement = w_sfobject-achievement.
-    w_metric_sf-description = w_sfobject-description.
-
-    APPEND w_metric_sf TO t_metric_sf.
-    CLEAR w_metric_sf.
+    add_internal_table.
 
   ENDLOOP.
+
+*/ QueryMore
+  DATA: l_query_more        TYPE REF TO zsfi_co_si_querymore_metricloo,
+        w_request_more      TYPE zsfi_mt_query_more_request,
+        w_response_more     TYPE zsfi_mt_query_more_metric_look,
+        l_tentativa         TYPE i.
+
+  l_has_more = w_response-mt_query_metric_lookup_respons-has_more.
+
+  WHILE l_has_more EQ abap_true.
+
+    w_request_more-mt_query_more_request-session_id = w_request-mt_query_user_request-session_id.
+    w_request_more-mt_query_more_request-query-query_session_id = w_response-mt_query_metric_lookup_respons-query_session_id.
+
+    TRY.
+
+        CREATE OBJECT l_query_more.
+
+        CALL METHOD l_query_more->si_query_goal10
+          EXPORTING
+            output = w_request_more
+          IMPORTING
+            input  = w_response_more.
+
+      CATCH cx_ai_system_fault INTO l_o_erro.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+        l_text = l_o_erro->get_text( ).
+        PERFORM zf_log USING space c_error l_text space.
+
+      CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+        l_text = l_o_erro_fault->standard-fault_text.
+        PERFORM zf_log USING space c_error l_text space.
+
+      CATCH cx_ai_application_fault INTO l_o_erro_apl.
+        PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
+
+        l_text = l_o_erro_apl->get_text( ).
+        PERFORM zf_log USING space c_error l_text space.
+
+    ENDTRY.
+
+    LOOP AT w_response_more-mt_query_more_metric_lookup_re-sfobject INTO w_sfobject.
+
+      add_internal_table.
+
+    ENDLOOP.
+
+    IF l_tentativa EQ 0.
+      l_has_more = abap_true.
+    ELSE.
+      l_has_more = w_response_more-mt_query_more_metric_lookup_re-has_more.
+    ENDIF.
+
+    ADD 1 TO l_tentativa.
+
+  ENDWHILE.
+*/
 
 ENDFORM.                    " zf_query_metriclookup
 
@@ -1657,14 +1878,14 @@ FORM zf_ajustar_arquivo.
 
   DATA: lv_tabix      TYPE sy-tabix,
         lv_mod        TYPE c,
-        lv_len        type i.
+        lv_len        TYPE i.
 
   LOOP AT t_outdata INTO w_outdata.
 
     lv_len = strlen( w_outdata-coluna ).
 
     IF  w_outdata-coluna IS INITIAL
-    OR  lv_len le 5
+    OR  lv_len LE 5
     OR  ( w_outdata-coluna(4) NE 'TYPE'
         AND w_outdata-coluna(6) NE 'ACTION'
         AND w_outdata-coluna(6) NE 'HEADER'
