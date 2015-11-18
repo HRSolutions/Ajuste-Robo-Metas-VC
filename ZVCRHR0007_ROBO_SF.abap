@@ -556,6 +556,7 @@ FORM zf_verificar_metas .
       <fs_metas>-field_desc       = w_goallibraryentry-desc.
       <fs_metas>-name             = w_goallibraryentry-name.
       <fs_metas>-category         = w_goallibraryentry-category.
+      <fs_metas>-metric           = w_goallibraryentry-metric.
 
       LOOP AT t_mile ASSIGNING <fs_milestone> WHERE goalid EQ <fs_metas>-id.
 
@@ -665,14 +666,16 @@ FORM zf_atualizar_metas_sf.
               'field_desc'            w_metas-field_desc,
               'name'                  w_metas-name,
               'actual_achievement'    w_metas-actual_achieveme,
-              'category'              w_metas-category.
+              'category'              w_metas-category,
+              'metric'                w_metas-metric.
 
     w_sfobject-entity = w_metas-layout.
     w_sfobject-id     = w_metas-id.
     w_sfobject-data   = t_data[].
 
     IF w_metas-name IS INITIAL OR
-       w_metas-field_desc IS INITIAL.
+       w_metas-field_desc IS INITIAL OR
+       w_metas-description IS INITIAL.
     ELSE.
       APPEND w_sfobject TO t_sfobject.
     ENDIF.
@@ -731,6 +734,8 @@ FORM zf_atualizar_metric_sf.
   SELECT *
     INTO TABLE t_metric
     FROM ztbhr_sfvc_metri.
+
+  DELETE t_metric WHERE subguid IS INITIAL.
 
   SORT t_metric BY layout.
 
@@ -813,6 +818,8 @@ FORM zf_atualizar_mile_sf.
   SELECT *
     INTO TABLE t_mile
     FROM ztbhr_sfvc_mile.
+
+  DELETE t_mile WHERE guid IS INITIAL.
 
   SORT t_mile BY layout.
 
@@ -1225,14 +1232,14 @@ FORM zf_query_goal USING p_entity.
       l_username = text-001 && 'vid_vcnet@paulorlc'&& text-001.
 
       CONCATENATE 'select id, guid, masterid, modifier, currentOwner, numbering,'
-                  'goaltype, flag, parentid, userid, username, status, description, library,'
-                  'fromlibrary, lastModified, name, field_desc, metric, actual_achievement,'
+                  'goaltype, flag, parentid, userid, username, status, library,'
+                  'fromlibrary, lastModified, actual_achievement,'
                   'rating, goal_score, bizx_target, interpolacao, bizx_actual, category, metricLookupAchievementType'
                   ' from '
                   p_entity
                   'where status != '
                   l_deleted
-                  'and id !=' l_goal
+*                  'and id !=' l_goal
 *                  'and username =' l_username
              INTO w_query-query_string SEPARATED BY space.
 
@@ -1342,50 +1349,50 @@ FORM zf_query_sfsf.
 
   PERFORM zf_mensagem_progresso USING 'Selecionando dados do SuccessFactors' ''.
 
-  PERFORM zf_query_goal USING 'Goal$204'.
+*  PERFORM zf_query_goal USING 'Goal$204'.
   PERFORM zf_query_goal USING 'Goal$303'.
-  PERFORM zf_query_goal USING 'Goal$305'.
-  PERFORM zf_query_goal USING 'Goal$306'.
-  PERFORM zf_query_goal USING 'Goal$403'.
-  PERFORM zf_query_goal USING 'Goal$405'.
-  PERFORM zf_query_goal USING 'Goal$406'.
-  PERFORM zf_query_goal USING 'Goal$9'.
-  PERFORM zf_query_goal USING 'Goal$10'.
-  PERFORM zf_query_goal USING 'Goal$12'.
-  PERFORM zf_query_goal USING 'Goal$13'.
-  PERFORM zf_query_goal USING 'Goal$14'.
-  PERFORM zf_query_goal USING 'Goal$15'.
-  PERFORM zf_query_goal USING 'Goal$16'.
+*  PERFORM zf_query_goal USING 'Goal$305'.
+*  PERFORM zf_query_goal USING 'Goal$306'.
+*  PERFORM zf_query_goal USING 'Goal$403'.
+*  PERFORM zf_query_goal USING 'Goal$405'.
+*  PERFORM zf_query_goal USING 'Goal$406'.
+*  PERFORM zf_query_goal USING 'Goal$9'.
+*  PERFORM zf_query_goal USING 'Goal$10'.
+*  PERFORM zf_query_goal USING 'Goal$12'.
+*  PERFORM zf_query_goal USING 'Goal$13'.
+*  PERFORM zf_query_goal USING 'Goal$14'.
+*  PERFORM zf_query_goal USING 'Goal$15'.
+*  PERFORM zf_query_goal USING 'Goal$16'.
 
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$204'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$204'.
   PERFORM zf_query_metriclookup USING 'GoalMetricLookup$303'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$305'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$306'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$403'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$405'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$406'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$9'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$10'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$12'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$13'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$14'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$15'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$16'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$305'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$306'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$403'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$405'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$406'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$9'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$10'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$12'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$13'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$14'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$15'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$16'.
 
-  PERFORM zf_query_milestone USING 'GoalMilestone$204'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$204'.
   PERFORM zf_query_milestone USING 'GoalMilestone$303'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$305'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$306'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$403'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$405'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$406'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$9'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$10'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$12'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$13'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$14'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$15'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$16'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$305'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$306'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$403'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$405'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$406'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$9'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$10'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$12'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$13'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$14'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$15'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$16'.
 
   MODIFY ztbhr_sfvc_metas FROM TABLE t_metas_sf.
   MODIFY ztbhr_sfvc_mile  FROM TABLE t_miles_sf.
@@ -1452,7 +1459,7 @@ FORM zf_query_milestone USING p_entity.
       CREATE OBJECT l_o_query.
 
       CONCATENATE 'select id, guid, goalid, masterid, lastmodified, modifier,'
-                  'displayorder, field_desc, customnum1, customnum2, customnum3,'
+                  'displayorder, customnum1, customnum2, customnum3,'
                   'actualnumber, rating'
                   'from'
                   p_entity
@@ -1764,7 +1771,7 @@ FORM zf_query_metriclookup USING p_entity.
       CREATE OBJECT l_o_query.
 
       CONCATENATE 'select id, subguid, goalid, masterid, lastmodified, '
-                  'displayorder, rating, achievement, description'
+                  'displayorder, rating, achievement'
                   'from '
                   p_entity
              INTO w_query-query_string SEPARATED BY space.
