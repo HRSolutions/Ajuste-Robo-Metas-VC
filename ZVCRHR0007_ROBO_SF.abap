@@ -565,10 +565,11 @@ FORM zf_verificar_metas .
 
         IF sy-subrc EQ 0.
 
+          <fs_milestone>-field_desc   = w_milestone-desc.
           <fs_milestone>-actualnumber = w_milestone-actualnumber.
-          <fs_milestone>-customnum1 = w_milestone-customnum1.
-          <fs_milestone>-customnum2 = w_milestone-customnum2.
-          <fs_milestone>-customnum3 = w_milestone-customnum3.
+          <fs_milestone>-customnum1   = w_milestone-customnum1.
+          <fs_milestone>-customnum2   = w_milestone-customnum2.
+          <fs_milestone>-customnum3   = w_milestone-customnum3.
 
         ENDIF.
 
@@ -872,7 +873,8 @@ FORM zf_atualizar_mile_sf.
               'customnum1'          w_mile-customnum1,
               'customnum2'          w_mile-customnum2,
               'customnum3'          w_mile-customnum3,
-              'actualnumber'        w_mile-actualnumber.
+              'actualnumber'        w_mile-actualnumber,
+              'field_desc'          w_mile-field_desc.
 
     w_sfobject-entity = w_mile-layout.
     w_sfobject-data   = t_data[].
@@ -1349,50 +1351,50 @@ FORM zf_query_sfsf.
 
   PERFORM zf_mensagem_progresso USING 'Selecionando dados do SuccessFactors' ''.
 
-*  PERFORM zf_query_goal USING 'Goal$204'.
+  PERFORM zf_query_goal USING 'Goal$204'.
   PERFORM zf_query_goal USING 'Goal$303'.
-*  PERFORM zf_query_goal USING 'Goal$305'.
-*  PERFORM zf_query_goal USING 'Goal$306'.
-*  PERFORM zf_query_goal USING 'Goal$403'.
-*  PERFORM zf_query_goal USING 'Goal$405'.
-*  PERFORM zf_query_goal USING 'Goal$406'.
-*  PERFORM zf_query_goal USING 'Goal$9'.
-*  PERFORM zf_query_goal USING 'Goal$10'.
-*  PERFORM zf_query_goal USING 'Goal$12'.
-*  PERFORM zf_query_goal USING 'Goal$13'.
-*  PERFORM zf_query_goal USING 'Goal$14'.
-*  PERFORM zf_query_goal USING 'Goal$15'.
-*  PERFORM zf_query_goal USING 'Goal$16'.
+  PERFORM zf_query_goal USING 'Goal$305'.
+  PERFORM zf_query_goal USING 'Goal$306'.
+  PERFORM zf_query_goal USING 'Goal$403'.
+  PERFORM zf_query_goal USING 'Goal$405'.
+  PERFORM zf_query_goal USING 'Goal$406'.
+  PERFORM zf_query_goal USING 'Goal$9'.
+  PERFORM zf_query_goal USING 'Goal$10'.
+  PERFORM zf_query_goal USING 'Goal$12'.
+  PERFORM zf_query_goal USING 'Goal$13'.
+  PERFORM zf_query_goal USING 'Goal$14'.
+  PERFORM zf_query_goal USING 'Goal$15'.
+  PERFORM zf_query_goal USING 'Goal$16'.
 
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$204'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$204'.
   PERFORM zf_query_metriclookup USING 'GoalMetricLookup$303'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$305'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$306'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$403'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$405'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$406'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$9'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$10'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$12'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$13'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$14'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$15'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$16'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$305'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$306'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$403'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$405'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$406'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$9'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$10'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$12'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$13'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$14'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$15'.
+  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$16'.
 
-*  PERFORM zf_query_milestone USING 'GoalMilestone$204'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$204'.
   PERFORM zf_query_milestone USING 'GoalMilestone$303'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$305'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$306'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$403'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$405'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$406'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$9'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$10'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$12'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$13'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$14'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$15'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$16'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$305'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$306'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$403'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$405'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$406'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$9'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$10'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$12'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$13'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$14'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$15'.
+  PERFORM zf_query_milestone USING 'GoalMilestone$16'.
 
   MODIFY ztbhr_sfvc_metas FROM TABLE t_metas_sf.
   MODIFY ztbhr_sfvc_mile  FROM TABLE t_miles_sf.
