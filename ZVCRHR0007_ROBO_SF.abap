@@ -520,7 +520,9 @@ FORM zf_verificar_metas .
         t_metric            TYPE TABLE OF ztbhr_sfvc_metri,
         w_milestone         LIKE LINE OF t_milestone,
         w_metriclookupentry LIKE LINE OF t_metriclookupentry,
-        w_goallibraryentry  LIKE LINE OF t_goallibraryentry.
+        w_goallibraryentry  LIKE LINE OF t_goallibraryentry,
+        l_index_mile        TYPE sy-tabix,
+        l_index_metric      TYPE sy-tabix.
 
   FIELD-SYMBOLS: <fs_metas>     LIKE LINE OF t_metas,
                  <fs_milestone> LIKE LINE OF t_mile,
@@ -560,32 +562,73 @@ FORM zf_verificar_metas .
 
       LOOP AT t_mile ASSIGNING <fs_milestone> WHERE goalid EQ <fs_metas>-id.
 
+        l_index_mile = sy-tabix.
+
         CLEAR w_milestone.
         READ TABLE t_milestone INTO w_milestone WITH KEY guid = <fs_milestone>-guid BINARY SEARCH.
 
-        IF sy-subrc EQ 0.
+        IF sy-subrc NE 0.
 
-          <fs_milestone>-field_desc   = w_milestone-desc.
-          <fs_milestone>-actualnumber = w_milestone-actualnumber.
-          <fs_milestone>-customnum1   = w_milestone-customnum1.
-          <fs_milestone>-customnum2   = w_milestone-customnum2.
-          <fs_milestone>-customnum3   = w_milestone-customnum3.
+          PERFORM zf_call_delete USING <fs_milestone>-layout
+                                       <fs_milestone>-id.
+
+          DELETE t_mile FROM l_index_mile.
 
         ENDIF.
 
       ENDLOOP.
 
+      LOOP AT t_milestone INTO w_milestone WHERE parent_guid = <fs_metas>-library.
+
+        READ TABLE t_mile ASSIGNING <fs_milestone> WITH KEY guid = w_milestone-guid.
+
+        IF sy-subrc NE 0.
+          APPEND INITIAL LINE TO t_mile ASSIGNING <fs_milestone>.
+        ENDIF.
+
+        <fs_milestone>-goalid       = <fs_metas>-id.
+        <fs_milestone>-guid         = w_milestone-guid.
+        <fs_milestone>-field_desc   = w_milestone-desc.
+        <fs_milestone>-actualnumber = w_milestone-actualnumber.
+        <fs_milestone>-customnum1   = w_milestone-customnum1.
+        <fs_milestone>-customnum2   = w_milestone-customnum2.
+        <fs_milestone>-customnum3   = w_milestone-customnum3.
+
+      ENDLOOP.
+
       LOOP AT t_metric ASSIGNING <fs_metric> WHERE goalid EQ <fs_metas>-id.
+
+l_index_metric = sy-tabix.
 
         CLEAR w_metriclookupentry.
         READ TABLE t_metriclookupentry INTO w_metriclookupentry WITH KEY guid = <fs_metric>-subguid BINARY SEARCH.
 
+        IF sy-subrc NE 0.
+
+          PERFORM zf_call_delete USING <fs_metric>-layout
+                                       <fs_metric>-id.
+
+delete t_metric index l_index_metric.
+
+        ENDIF.
+
+      ENDLOOP.
+
+      loop at t_metriclookupentry into w_metriclookupentry where parent_guid eq <fs_metas>-library.
+
+        read table t_metric assigning <fs_metric> with key subguid = w_metriclookupentry-guid.
+
+        if sy-subrc ne 0.
+        append initial line to t_metric assigning <fs_metric>.
+        endif.
+
+        <fs_metric>-goalid        = <fs_metas>-id.
         <fs_metric>-subguid       = w_metriclookupentry-guid.
         <fs_metric>-rating        = w_metriclookupentry-rating.
         <fs_metric>-achievement   = w_metriclookupentry-achievement.
         <fs_metric>-description   = w_metriclookupentry-description.
 
-      ENDLOOP.
+      endloop.
 
     ENDLOOP.
 
@@ -596,6 +639,134 @@ FORM zf_verificar_metas .
   MODIFY ztbhr_sfvc_mile  FROM TABLE t_mile.
 
 ENDFORM.                    " ZF_VERIFICAR_METAS
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_call_delete
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->I_LAYOUT   text
+*      -->I_ID       text
+*----------------------------------------------------------------------*
+FORM zf_call_delete USING i_layout
+                          i_id.
+
+  DATA: l_count        TYPE i,
+        l_count_tot    TYPE i,
+        l_lote         TYPE i,
+        l_o_erro       TYPE REF TO cx_root,
+        l_o_erro_apl   TYPE REF TO cx_ai_application_fault,
+        l_o_erro_fault TYPE REF TO zsfi_cx_dt_fault,
+        l_text         TYPE string,
+        l_sessionid    TYPE string,
+        l_batchsize    TYPE i,
+        l_tabix        TYPE sy-tabix,
+        l_o_delete     TYPE REF TO zsfi_co_si_delete_request,
+        w_request      TYPE zsfi_mt_operation_request,
+        w_response     TYPE zsfi_mt_operation_response,
+        w_result       TYPE LINE OF zsfi_mt_operation_response-mt_operation_response-object_edit_result,
+        w_sfobject     TYPE LINE OF zsfi_dt_operation_request__tab,
+        t_sfobject     TYPE zsfi_dt_operation_request__tab,
+        w_sfparam      LIKE LINE OF w_request-mt_operation_request-processing_param,
+        t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
+        w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
+        w_sfobject_data     LIKE LINE OF w_sfobject-data,
+        t_sfobject_all      LIKE t_sfobject,
+        t_data              TYPE zsfi_dt_operation_request_tab2,
+        w_credenciais       LIKE LINE OF t_credenciais.
+
+  READ TABLE t_credenciais INTO w_credenciais INDEX 1.
+
+  w_sfobject-id     = i_id.
+  w_sfobject-entity = i_layout.
+  w_sfobject-data   = t_data[].
+  APPEND w_sfobject TO t_sfobject_all.
+  CLEAR: w_sfobject, t_data[].
+
+  IF lines( t_sfobject_all ) <= w_credenciais-batchsize.
+    l_count = 1.
+  ELSE.
+    l_count = lines( t_sfobject_all ) / w_credenciais-batchsize.
+  ENDIF.
+
+  DO l_count TIMES.
+
+    LOOP AT t_sfobject_all INTO w_sfobject FROM l_count_tot.
+
+      l_tabix = sy-tabix.
+      ADD 1 TO l_lote.
+      ADD 1 TO l_count_tot.
+
+      APPEND w_sfobject TO t_sfobject.
+*        DELETE p_sfobject INDEX l_tabix.
+      CLEAR w_sfobject.
+
+      IF l_lote     EQ w_credenciais-batchsize OR
+         l_count_tot  EQ lines( t_sfobject_all ).
+
+        PERFORM zf_login_successfactors USING w_credenciais-empresa
+                                     CHANGING l_sessionid
+                                              l_batchsize.
+
+        TRY.
+
+            CREATE OBJECT l_o_delete.
+
+            w_request-mt_operation_request-entity     = i_layout.
+            w_request-mt_operation_request-session_id = l_sessionid.
+            w_request-mt_operation_request-sfobject   = t_sfobject.
+
+            CALL METHOD l_o_delete->si_delete_request
+              EXPORTING
+                output = w_request
+              IMPORTING
+                input  = w_response.
+
+            IF w_response-mt_operation_response-job_status EQ 'ERROR'.
+
+              PERFORM zf_log USING space c_error 'Erro ao Efetuar Delete para a Empresa'(020) w_credenciais-empresa.
+
+              LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE error_status EQ 'ERROR'.
+                PERFORM zf_log USING space c_error w_result-message space.
+              ENDLOOP.
+
+            ELSE.
+
+              PERFORM zf_log USING space c_success 'Delete Efetuado com Sucesso para a Empresa'(023) w_credenciais-empresa.
+
+            ENDIF.
+
+          CATCH cx_ai_system_fault INTO l_o_erro.
+            PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) w_credenciais-empresa.
+
+            l_text = l_o_erro->get_text( ).
+            PERFORM zf_log USING space c_error l_text space.
+
+          CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
+            PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) w_credenciais-empresa.
+
+            l_text = l_o_erro_fault->standard-fault_text.
+            PERFORM zf_log USING space c_error l_text space.
+
+          CATCH cx_ai_application_fault INTO l_o_erro_apl.
+            PERFORM zf_log USING space c_error 'Erro ao Efetuar Upsert para a Empresa'(020) w_credenciais-empresa.
+
+            l_text = l_o_erro_apl->get_text( ).
+            PERFORM zf_log USING space c_error l_text space.
+
+        ENDTRY.
+
+        CLEAR: l_lote,
+               w_sfobject,
+               t_sfobject.
+
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDDO.
+
+ENDFORM.                    "zf_call_delete
 
 *&---------------------------------------------------------------------*
 *&      Form  zf_atualizar_metas_sf
@@ -1351,50 +1522,56 @@ FORM zf_query_sfsf.
 
   PERFORM zf_mensagem_progresso USING 'Selecionando dados do SuccessFactors' ''.
 
-  PERFORM zf_query_goal USING 'Goal$204'.
+*  PERFORM zf_query_goal USING 'Goal$204'.
   PERFORM zf_query_goal USING 'Goal$303'.
-  PERFORM zf_query_goal USING 'Goal$305'.
-  PERFORM zf_query_goal USING 'Goal$306'.
-  PERFORM zf_query_goal USING 'Goal$403'.
-  PERFORM zf_query_goal USING 'Goal$405'.
-  PERFORM zf_query_goal USING 'Goal$406'.
-  PERFORM zf_query_goal USING 'Goal$9'.
-  PERFORM zf_query_goal USING 'Goal$10'.
-  PERFORM zf_query_goal USING 'Goal$12'.
-  PERFORM zf_query_goal USING 'Goal$13'.
-  PERFORM zf_query_goal USING 'Goal$14'.
-  PERFORM zf_query_goal USING 'Goal$15'.
-  PERFORM zf_query_goal USING 'Goal$16'.
+*  PERFORM zf_query_goal USING 'Goal$305'.
+*  PERFORM zf_query_goal USING 'Goal$306'.
+*  PERFORM zf_query_goal USING 'Goal$403'.
+*  PERFORM zf_query_goal USING 'Goal$405'.
+*  PERFORM zf_query_goal USING 'Goal$406'.
+*  PERFORM zf_query_goal USING 'Goal$9'.
+*  PERFORM zf_query_goal USING 'Goal$10'.
+*  PERFORM zf_query_goal USING 'Goal$12'.
+*  PERFORM zf_query_goal USING 'Goal$13'.
+*  PERFORM zf_query_goal USING 'Goal$14'.
+*  PERFORM zf_query_goal USING 'Goal$15'.
+*  PERFORM zf_query_goal USING 'Goal$16'.
 
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$204'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$204'.
   PERFORM zf_query_metriclookup USING 'GoalMetricLookup$303'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$305'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$306'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$403'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$405'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$406'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$9'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$10'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$12'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$13'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$14'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$15'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$16'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$305'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$306'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$403'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$405'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$406'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$9'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$10'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$12'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$13'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$14'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$15'.
+*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$16'.
 
-  PERFORM zf_query_milestone USING 'GoalMilestone$204'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$204'.
   PERFORM zf_query_milestone USING 'GoalMilestone$303'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$305'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$306'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$403'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$405'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$406'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$9'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$10'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$12'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$13'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$14'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$15'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$16'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$305'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$306'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$403'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$405'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$406'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$9'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$10'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$12'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$13'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$14'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$15'.
+*  PERFORM zf_query_milestone USING 'GoalMilestone$16'.
+
+  DELETE FROM ztbhr_sfvc_metas.
+  DELETE FROM ztbhr_sfvc_mile.
+  DELETE FROM ztbhr_sfvc_metri.
+
+  COMMIT WORK AND WAIT.
 
   MODIFY ztbhr_sfvc_metas FROM TABLE t_metas_sf.
   MODIFY ztbhr_sfvc_mile  FROM TABLE t_miles_sf.
