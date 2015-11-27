@@ -168,7 +168,7 @@ TYPES: BEGIN OF y_goallibraryentry,
   END OF y_check,
 
   BEGIN OF y_arquivo,
-      coluna TYPE string,
+      coluna(10000) TYPE c,
   END OF y_arquivo.
 
 *  ----------------------------------------------------------------------*
@@ -210,7 +210,8 @@ DATA: v_rc        TYPE i,
       v_linha     TYPE string,
       v_file      TYPE string,
       v_idlog     TYPE ztbhr_sfsf_log-idlog,
-      v_seq       TYPE ztbhr_sfsf_log-seq.
+      v_seq       TYPE ztbhr_sfsf_log-seq,
+      v_goals_id  TYPE string.
 
 *  ----------------------------------------------------------------------*
 *   Constantes                                                           *
@@ -421,9 +422,11 @@ FORM zf_split_dados .
                                              w_goallibraryentry-type
                                              w_goallibraryentry-bizx_status_comments.
 
+          TRANSLATE: w_goallibraryentry-name USING '§,'.
+          TRANSLATE: w_goallibraryentry-desc USING '§,'.
+
           APPEND w_goallibraryentry TO t_goallibraryentry.
           CLEAR w_goallibraryentry.
-
 
         WHEN 'Milestone'.
           SPLIT w_outdata-coluna AT p_deli INTO w_milestone-add
@@ -565,14 +568,14 @@ FORM zf_verificar_metas .
         l_index_mile = sy-tabix.
 
         CLEAR w_milestone.
-        READ TABLE t_milestone INTO w_milestone WITH KEY guid = <fs_milestone>-guid BINARY SEARCH.
+        READ TABLE t_milestone INTO w_milestone WITH KEY guid = <fs_milestone>-guid.
 
         IF sy-subrc NE 0.
 
           PERFORM zf_call_delete USING <fs_milestone>-layout
                                        <fs_milestone>-id.
 
-          DELETE t_mile FROM l_index_mile.
+          DELETE t_mile INDEX l_index_mile.
 
         ENDIF.
 
@@ -598,7 +601,7 @@ FORM zf_verificar_metas .
 
       LOOP AT t_metric ASSIGNING <fs_metric> WHERE goalid EQ <fs_metas>-id.
 
-l_index_metric = sy-tabix.
+        l_index_metric = sy-tabix.
 
         CLEAR w_metriclookupentry.
         READ TABLE t_metriclookupentry INTO w_metriclookupentry WITH KEY guid = <fs_metric>-subguid BINARY SEARCH.
@@ -608,19 +611,19 @@ l_index_metric = sy-tabix.
           PERFORM zf_call_delete USING <fs_metric>-layout
                                        <fs_metric>-id.
 
-delete t_metric index l_index_metric.
+          DELETE t_metric INDEX l_index_metric.
 
         ENDIF.
 
       ENDLOOP.
 
-      loop at t_metriclookupentry into w_metriclookupentry where parent_guid eq <fs_metas>-library.
+      LOOP AT t_metriclookupentry INTO w_metriclookupentry WHERE parent_guid EQ <fs_metas>-library.
 
-        read table t_metric assigning <fs_metric> with key subguid = w_metriclookupentry-guid.
+        READ TABLE t_metric ASSIGNING <fs_metric> WITH KEY subguid = w_metriclookupentry-guid.
 
-        if sy-subrc ne 0.
-        append initial line to t_metric assigning <fs_metric>.
-        endif.
+        IF sy-subrc NE 0.
+          APPEND INITIAL LINE TO t_metric ASSIGNING <fs_metric>.
+        ENDIF.
 
         <fs_metric>-goalid        = <fs_metas>-id.
         <fs_metric>-subguid       = w_metriclookupentry-guid.
@@ -628,11 +631,17 @@ delete t_metric index l_index_metric.
         <fs_metric>-achievement   = w_metriclookupentry-achievement.
         <fs_metric>-description   = w_metriclookupentry-description.
 
-      endloop.
+      ENDLOOP.
 
     ENDLOOP.
 
   ENDLOOP.
+
+  DELETE FROM ztbhr_sfvc_metas.
+  DELETE FROM ztbhr_sfvc_metri.
+  DELETE FROM ztbhr_sfvc_mile.
+
+  COMMIT WORK AND WAIT.
 
   MODIFY ztbhr_sfvc_metas FROM TABLE t_metas.
   MODIFY ztbhr_sfvc_metri FROM TABLE t_metric.
@@ -833,7 +842,7 @@ FORM zf_atualizar_metas_sf.
     add_data:
               'flag'                  'Public',
 *              'userId'                w_metas-userid,
-              'status'                'read only',
+*              'status'                'read only',
               'description'           w_metas-description,
               'field_desc'            w_metas-field_desc,
               'name'                  w_metas-name,
@@ -1345,7 +1354,8 @@ FORM zf_query_goal USING p_entity.
         l_has_more          TYPE c,
         l_deleted           TYPE string,
         l_goal              TYPE string,
-        l_username          TYPE string.
+        l_username          TYPE string,
+        l_id                TYPE string.
 
   DEFINE add_internal_table.
 
@@ -1384,7 +1394,11 @@ FORM zf_query_goal USING p_entity.
     w_metas_sf-bizx_actual = w_sfobject-bizx_actual.
     w_metas_sf-category = w_sfobject-category.
 
-    append w_metas_sf to t_metas_sf.
+    if not w_metas_sf-library is initial.
+      append w_metas_sf to t_metas_sf.
+      l_id = text-001 && w_metas_sf-id && text-001.
+      v_goals_id = v_goals_id && ',' && l_id.
+    endif.
     clear w_metas_sf.
 
   END-OF-DEFINITION.
@@ -1401,7 +1415,7 @@ FORM zf_query_goal USING p_entity.
 
       CREATE OBJECT l_o_query.
       l_deleted = text-001 && 'deleted'&& text-001.
-      l_goal = text-001 && 'GOAL-12051' && text-001.
+      l_goal = '(' && text-001 && 'GOAL-20951' && text-001 && ',' && text-001 && 'GOAL-20952' && text-001 && ',' && text-001 && 'GOAL-20954' && text-001 && ')'.
       l_username = text-001 && 'vid_vcnet@paulorlc'&& text-001.
 
       CONCATENATE 'select id, guid, masterid, modifier, currentOwner, numbering,'
@@ -1412,7 +1426,7 @@ FORM zf_query_goal USING p_entity.
                   p_entity
                   'where status != '
                   l_deleted
-*                  'and id !=' l_goal
+*                  'and id IN' l_goal
 *                  'and username =' l_username
              INTO w_query-query_string SEPARATED BY space.
 
@@ -1510,6 +1524,10 @@ FORM zf_query_goal USING p_entity.
 
   ENDWHILE.
 */
+
+  IF NOT v_goals_id IS INITIAL.
+    v_goals_id = '(' && v_goals_id+1 && ')'.
+  ENDIF.
 
 ENDFORM.                    " ZF_QUERY_GOAL
 
@@ -1642,6 +1660,8 @@ FORM zf_query_milestone USING p_entity.
                   'actualnumber, rating'
                   'from'
                   p_entity
+                  'where goalid IN'
+                  v_goals_id
              INTO w_query-query_string SEPARATED BY space.
 
       w_request-mt_query_user_request-query      = w_query.
@@ -1953,6 +1973,8 @@ FORM zf_query_metriclookup USING p_entity.
                   'displayorder, rating, achievement'
                   'from '
                   p_entity
+                  'where goalid in'
+                  v_goals_id
              INTO w_query-query_string SEPARATED BY space.
 
       w_request-mt_query_user_request-query      = w_query.
@@ -2100,6 +2122,60 @@ FORM zf_ajustar_arquivo.
       ENDIF.
 
     ENDIF.
+
+  ENDLOOP.
+
+  DATA: lt_result     TYPE match_result_tab,
+        w_result      LIKE LINE OF lt_result,
+        l_offset_ini  LIKE w_result-offset,
+        l_offset_fim  LIKE w_result-offset,
+        l_len         TYPE sy-index,
+        l_times       TYPE sy-index,
+        l_texto(255)  TYPE c,
+        l_tabix       TYPE sy-tabix.
+
+  FIELD-SYMBOLS: <f_field> TYPE any.
+
+  LOOP AT t_outdata INTO w_outdata.
+
+    l_tabix = sy-tabix.
+
+    FIND ALL OCCURRENCES OF '"' IN w_outdata-coluna RESULTS lt_result.
+
+    IF sy-subrc EQ 0.
+
+      LOOP AT lt_result INTO w_result.
+
+        IF sy-tabix EQ 1.
+          l_offset_ini = w_result-offset + 1.
+        ELSE.
+          l_offset_fim = w_result-offset + 1.
+        ENDIF.
+
+      ENDLOOP.
+
+      l_times = l_offset_fim - l_offset_ini.
+      l_len = l_offset_ini.
+
+      DO l_times TIMES.
+
+        l_texto = w_outdata-coluna+l_len(1).
+        TRANSLATE l_texto USING ',§'.
+        w_outdata-coluna+l_len(1) = l_texto.
+        CLEAR: l_texto.
+        ADD 1 TO l_len.
+
+      ENDDO.
+
+      MODIFY t_outdata FROM w_outdata INDEX l_tabix.
+
+    ENDIF.
+
+    CLEAR: lt_result[],
+           l_offset_ini,
+           l_offset_fim,
+           l_len,
+           l_times.
 
   ENDLOOP.
 
