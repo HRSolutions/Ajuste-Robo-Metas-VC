@@ -211,7 +211,7 @@ DATA: v_rc        TYPE i,
       v_file      TYPE string,
       v_idlog     TYPE ztbhr_sfsf_log-idlog,
       v_seq       TYPE ztbhr_sfsf_log-seq,
-      v_goals_id  TYPE string.
+      r_goals_id  TYPE RANGE OF ztbhr_sfvc_metas-id.
 
 *  ----------------------------------------------------------------------*
 *   Constantes                                                           *
@@ -1355,7 +1355,8 @@ FORM zf_query_goal USING p_entity.
         l_deleted           TYPE string,
         l_goal              TYPE string,
         l_username          TYPE string,
-        l_id                TYPE string.
+        l_id                TYPE string,
+        w_goals_id          LIKE LINE OF r_goals_id.
 
   DEFINE add_internal_table.
 
@@ -1396,8 +1397,11 @@ FORM zf_query_goal USING p_entity.
 
     if not w_metas_sf-library is initial.
       append w_metas_sf to t_metas_sf.
-      l_id = text-001 && w_metas_sf-id && text-001.
-      v_goals_id = v_goals_id && ',' && l_id.
+      w_goals_id-sign   = 'I'.
+      w_goals_id-option = 'EQ'.
+      w_goals_id-low    = w_metas_sf-id.
+      append w_goals_id to r_goals_id.
+      clear w_goals_id.
     endif.
     clear w_metas_sf.
 
@@ -1525,10 +1529,6 @@ FORM zf_query_goal USING p_entity.
   ENDWHILE.
 */
 
-  IF NOT v_goals_id IS INITIAL.
-    v_goals_id = '(' && v_goals_id+1 && ')'.
-  ENDIF.
-
 ENDFORM.                    " ZF_QUERY_GOAL
 
 *&---------------------------------------------------------------------*
@@ -1640,7 +1640,10 @@ FORM zf_query_milestone USING p_entity.
     w_miles_sf-actualnumber = w_sfobject-actual_number.
     w_miles_sf-rating = w_sfobject-rating.
 
-    append w_miles_sf to t_miles_sf.
+    if w_miles_sf-goalid in r_goals_id.
+      append w_miles_sf to t_miles_sf.
+    endif.
+
     clear w_miles_sf.
 
   END-OF-DEFINITION.
@@ -1660,8 +1663,6 @@ FORM zf_query_milestone USING p_entity.
                   'actualnumber, rating'
                   'from'
                   p_entity
-                  'where goalid IN'
-                  v_goals_id
              INTO w_query-query_string SEPARATED BY space.
 
       w_request-mt_query_user_request-query      = w_query.
@@ -1954,7 +1955,10 @@ FORM zf_query_metriclookup USING p_entity.
     w_metric_sf-achievement = w_sfobject-achievement.
     w_metric_sf-description = w_sfobject-description.
 
-    append w_metric_sf to t_metric_sf.
+    if w_metric_sf-goalid in r_goals_id.
+      append w_metric_sf to t_metric_sf.
+    endif.
+
     clear w_metric_sf.
 
   END-OF-DEFINITION.
@@ -1973,8 +1977,6 @@ FORM zf_query_metriclookup USING p_entity.
                   'displayorder, rating, achievement'
                   'from '
                   p_entity
-                  'where goalid in'
-                  v_goals_id
              INTO w_query-query_string SEPARATED BY space.
 
       w_request-mt_query_user_request-query      = w_query.
