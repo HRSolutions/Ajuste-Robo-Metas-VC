@@ -525,7 +525,9 @@ FORM zf_verificar_metas .
         w_metriclookupentry LIKE LINE OF t_metriclookupentry,
         w_goallibraryentry  LIKE LINE OF t_goallibraryentry,
         l_index_mile        TYPE sy-tabix,
-        l_index_metric      TYPE sy-tabix.
+        l_index_metric      TYPE sy-tabix,
+        l_layout_miles      type string,
+        l_layout_metric     type string.
 
   FIELD-SYMBOLS: <fs_metas>     LIKE LINE OF t_metas,
                  <fs_milestone> LIKE LINE OF t_mile,
@@ -552,6 +554,9 @@ FORM zf_verificar_metas .
   DELETE t_metas WHERE library IS INITIAL.
 
   LOOP AT t_metas ASSIGNING <fs_metas>.
+
+    l_layout_miles   = 'GoalMilestone' && <fs_metas>-layout+4.
+    l_layout_metric  = 'GoalMetricLookup' && <fs_metas>-layout+4.
 
     CLEAR w_goallibraryentry.
     LOOP AT t_goallibraryentry INTO w_goallibraryentry WHERE guid = <fs_metas>-library.
@@ -589,6 +594,7 @@ FORM zf_verificar_metas .
           APPEND INITIAL LINE TO t_mile ASSIGNING <fs_milestone>.
         ENDIF.
 
+        <fs_milestone>-layout       = l_layout_miles.
         <fs_milestone>-goalid       = <fs_metas>-id.
         <fs_milestone>-guid         = w_milestone-guid.
         <fs_milestone>-field_desc   = w_milestone-desc.
@@ -625,6 +631,7 @@ FORM zf_verificar_metas .
           APPEND INITIAL LINE TO t_metric ASSIGNING <fs_metric>.
         ENDIF.
 
+        <fs_metric>-layout        = l_layout_metric.
         <fs_metric>-goalid        = <fs_metas>-id.
         <fs_metric>-subguid       = w_metriclookupentry-guid.
         <fs_metric>-rating        = w_metriclookupentry-rating.
@@ -1419,7 +1426,8 @@ FORM zf_query_goal USING p_entity.
 
       CREATE OBJECT l_o_query.
       l_deleted = text-001 && 'deleted'&& text-001.
-      l_goal = '(' && text-001 && 'GOAL-20951' && text-001 && ',' && text-001 && 'GOAL-20952' && text-001 && ',' && text-001 && 'GOAL-20954' && text-001 && ')'.
+*      l_goal = '(' && text-001 && 'GOAL-20951' && text-001 && ',' && text-001 && 'GOAL-20952' && text-001 && ',' && text-001 && 'GOAL-20954' && text-001 && ')'.
+      l_goal = '(' && text-001 && 'GOAL-29989' && text-001 && ')'.
       l_username = text-001 && 'vid_vcnet@paulorlc'&& text-001.
 
       CONCATENATE 'select id, guid, masterid, modifier, currentOwner, numbering,'
@@ -1656,6 +1664,9 @@ FORM zf_query_milestone USING p_entity.
 
   TRY.
 
+  data: l_where type string.
+  l_where = 'where goalid = ' && text-001 && 'GOAL-29989' && text-001.
+
       CREATE OBJECT l_o_query.
 
       CONCATENATE 'select id, guid, goalid, masterid, lastmodified, modifier,'
@@ -1663,6 +1674,7 @@ FORM zf_query_milestone USING p_entity.
                   'actualnumber, rating'
                   'from'
                   p_entity
+*                  l_where
              INTO w_query-query_string SEPARATED BY space.
 
       w_request-mt_query_user_request-query      = w_query.
@@ -1971,12 +1983,16 @@ FORM zf_query_metriclookup USING p_entity.
 
   TRY.
 
+  data: l_where type string.
+  l_where = 'where goalid = ' && text-001 && 'GOAL-29989' && text-001.
+
       CREATE OBJECT l_o_query.
 
       CONCATENATE 'select id, subguid, goalid, masterid, lastmodified, '
                   'displayorder, rating, achievement'
                   'from '
                   p_entity
+*                  l_where
              INTO w_query-query_string SEPARATED BY space.
 
       w_request-mt_query_user_request-query      = w_query.
