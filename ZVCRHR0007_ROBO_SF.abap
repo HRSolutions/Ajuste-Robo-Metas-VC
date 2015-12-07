@@ -224,8 +224,22 @@ CONSTANTS: c_error                TYPE c VALUE 'E',
 *   Tela de Seleção                                                      *
 *  ----------------------------------------------------------------------*
 SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-000.
-PARAMETERS : p_file TYPE string DEFAULT 'C:\',
-             p_deli TYPE c      DEFAULT ','.
+PARAMETERS : p_file   TYPE string DEFAULT 'C:\',
+             p_deli   TYPE c      DEFAULT ','.
+
+SELECTION-SCREEN SKIP.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+PARAMETERS:  p_select AS CHECKBOX,
+             p_carga  AS CHECKBOX,
+             p_upsert AS CHECKBOX.
+SELECTION-SCREEN END OF BLOCK b2.
+
+SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-003.
+PARAMETERS:  p_2015op AS CHECKBOX,
+             p_2015ec AS CHECKBOX.
+SELECTION-SCREEN END OF BLOCK b3.
+
 SELECTION-SCREEN END OF BLOCK b1.
 
 *SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-001.
@@ -280,16 +294,29 @@ START-OF-SELECTION.
     INTO TABLE t_credenciais
     FROM ztbhr_sfsf_crede.
 
-  PERFORM zf_mensagem_progresso USING 'Carregando Arquivo da Biblioteca' ''.
-  PERFORM zf_carregar_arquivo.
-  PERFORM zf_ajustar_arquivo.
-  PERFORM zf_split_dados.
-  PERFORM zf_query_sfsf.
-  PERFORM zf_verificar_metas.
-  PERFORM zf_mensagem_progresso USING 'Atualizando Metas no SuccessFactors' ''.
-  PERFORM zf_atualizar_metas_sf.
-  PERFORM zf_atualizar_metric_sf.
-  PERFORM zf_atualizar_mile_sf.
+  IF p_carga EQ abap_true.
+    PERFORM zf_mensagem_progresso USING 'Carregando Arquivo da Biblioteca' ''.
+    PERFORM zf_carregar_arquivo.
+    PERFORM zf_ajustar_arquivo.
+    PERFORM zf_split_dados.
+  ENDIF.
+
+  IF p_select EQ abap_true.
+    PERFORM zf_query_sfsf.
+  ENDIF.
+
+  IF p_carga EQ abap_true.
+    PERFORM zf_verificar_metas.
+  ENDIF.
+
+  IF p_upsert EQ abap_true.
+    PERFORM zf_mensagem_progresso USING 'Atualizando Metas no SuccessFactors' ''.
+    PERFORM zf_atualizar_metas_sf.
+    PERFORM zf_atualizar_metric_sf.
+    PERFORM zf_atualizar_mile_sf.
+  ENDIF.
+
+  PERFORM zf_gravar_log.
 
 *&---------------------------------------------------------------------*
 *&      Form  ZF_CARREGAR_ARQUIVO
@@ -298,45 +325,31 @@ FORM zf_carregar_arquivo .
 
   CALL FUNCTION 'GUI_UPLOAD'
     EXPORTING
-      filename                     = p_file
-     filetype                      = 'ASC'
-*    HAS_FIELD_SEPARATOR           = ' '
-*    HEADER_LENGTH                 = 0
-*    READ_BY_LINE                  = 'X'
-*    DAT_MODE                      = ' '
-    codepage                      = '4110'
-*    IGNORE_CERR                   = ABAP_TRUE
-*    REPLACEMENT                   = '#'
-*    CHECK_BOM                     = ' '
-*    VIRUS_SCAN_PROFILE            =
-*    NO_AUTH_CHECK                 = ' '
-*  IMPORTING
-*    FILELENGTH                    =
-*    HEADER                        =
+      filename                = p_file
+      filetype                = 'ASC'
+      codepage                = '4110'
     TABLES
-      data_tab                      = t_outdata
-*  EXCEPTIONS
-*    FILE_OPEN_ERROR               = 1
-*    FILE_READ_ERROR               = 2
-*    NO_BATCH                      = 3
-*    GUI_REFUSE_FILETRANSFER       = 4
-*    INVALID_TYPE                  = 5
-*    NO_AUTHORITY                  = 6
-*    UNKNOWN_ERROR                 = 7
-*    BAD_DATA_FORMAT               = 8
-*    HEADER_NOT_ALLOWED            = 9
-*    SEPARATOR_NOT_ALLOWED         = 10
-*    HEADER_TOO_LONG               = 11
-*    UNKNOWN_DP_ERROR              = 12
-*    ACCESS_DENIED                 = 13
-*    DP_OUT_OF_MEMORY              = 14
-*    DISK_FULL                     = 15
-*    DP_TIMEOUT                    = 16
-*    OTHERS                        = 17
-            .
+      data_tab                = t_outdata
+    EXCEPTIONS
+      file_open_error         = 1
+      file_read_error         = 2
+      no_batch                = 3
+      gui_refuse_filetransfer = 4
+      invalid_type            = 5
+      no_authority            = 6
+      unknown_error           = 7
+      bad_data_format         = 8
+      header_not_allowed      = 9
+      separator_not_allowed   = 10
+      header_too_long         = 11
+      unknown_dp_error        = 12
+      access_denied           = 13
+      dp_out_of_memory        = 14
+      disk_full               = 15
+      dp_timeout              = 16
+      OTHERS                  = 17.
   IF sy-subrc <> 0.
-* MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
-*         WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+    CLEAR t_outdata.
   ENDIF.
 
 ENDFORM.                    " ZF_CARREGAR_ARQUIVO
@@ -448,6 +461,31 @@ FORM zf_split_dados .
                                              w_milestone-score
                                              w_milestone-actualnumber
                                              w_milestone-resto.
+
+          TRANSLATE: w_milestone-customnum1    USING '% '.
+          TRANSLATE: w_milestone-customnum2    USING '% '.
+          TRANSLATE: w_milestone-customnum3    USING '% '.
+          TRANSLATE: w_milestone-actualnumber  USING '% '.
+          TRANSLATE: w_milestone-actual        USING '% '.
+
+          TRANSLATE: w_milestone-customnum1    USING '§ '.
+          TRANSLATE: w_milestone-customnum2    USING '§ '.
+          TRANSLATE: w_milestone-customnum3    USING '§ '.
+          TRANSLATE: w_milestone-actualnumber  USING '§ '.
+          TRANSLATE: w_milestone-actual        USING '§ '.
+
+          TRANSLATE w_milestone-customnum1    USING '  '.
+          TRANSLATE w_milestone-customnum2    USING '  '.
+          TRANSLATE w_milestone-customnum3    USING '  '.
+          TRANSLATE w_milestone-actualnumber  USING '  '.
+          TRANSLATE w_milestone-actual        USING '  '.
+
+          CONDENSE: w_milestone-customnum1    NO-GAPS,
+                    w_milestone-customnum2    NO-GAPS,
+                    w_milestone-customnum3    NO-GAPS,
+                    w_milestone-actualnumber  NO-GAPS,
+                    w_milestone-actual        NO-GAPS.
+
           APPEND w_milestone TO t_milestone.
           CLEAR w_milestone.
 
@@ -498,6 +536,13 @@ FORM zf_split_dados .
                                              w_metriclookupentry-achievement
                                              w_metriclookupentry-resto.
 
+          TRANSLATE: w_metriclookupentry-achievement USING '§ '.
+          TRANSLATE: w_metriclookupentry-achievement USING '% '.
+
+          TRANSLATE: w_metriclookupentry-description USING '§,'.
+
+          CONDENSE w_metriclookupentry-achievement NO-GAPS.
+
           APPEND w_metriclookupentry TO t_metriclookupentry.
           CLEAR w_metriclookupentry.
 
@@ -518,16 +563,23 @@ ENDFORM.                    " ZF_SPLIT_DADOS
 *&---------------------------------------------------------------------*
 FORM zf_verificar_metas .
 
+  TYPES: BEGIN OF y_mile.
+          INCLUDE STRUCTURE ztbhr_sfvc_mile.
+  TYPES:  guid_numc(40) TYPE n,
+         END OF y_mile.
+
   DATA: t_metas             TYPE TABLE OF ztbhr_sfvc_metas,
-        t_mile              TYPE TABLE OF ztbhr_sfvc_mile,
+        t_mile              TYPE TABLE OF y_mile,
         t_metric            TYPE TABLE OF ztbhr_sfvc_metri,
         w_milestone         LIKE LINE OF t_milestone,
         w_metriclookupentry LIKE LINE OF t_metriclookupentry,
         w_goallibraryentry  LIKE LINE OF t_goallibraryentry,
         l_index_mile        TYPE sy-tabix,
         l_index_metric      TYPE sy-tabix,
-        l_layout_miles      type string,
-        l_layout_metric     type string.
+        l_layout_miles      TYPE string,
+        l_layout_metric     TYPE string,
+        l_message           TYPE string,
+        l_lines             TYPE i.
 
   FIELD-SYMBOLS: <fs_metas>     LIKE LINE OF t_metas,
                  <fs_milestone> LIKE LINE OF t_mile,
@@ -540,7 +592,7 @@ FORM zf_verificar_metas .
     FROM ztbhr_sfvc_metas.
 
   SELECT *
-    INTO TABLE t_mile
+    INTO CORRESPONDING FIELDS OF TABLE t_mile
     FROM ztbhr_sfvc_mile.
 
   SELECT *
@@ -553,7 +605,13 @@ FORM zf_verificar_metas .
 
   DELETE t_metas WHERE library IS INITIAL.
 
+  DESCRIBE TABLE t_metas LINES l_lines.
+
   LOOP AT t_metas ASSIGNING <fs_metas>.
+
+    l_message = 'Processando Meta -' && sy-tabix && ' de -' && l_lines.
+
+    PERFORM zf_mensagem_progresso USING l_message ''.
 
     l_layout_miles   = 'GoalMilestone' && <fs_metas>-layout+4.
     l_layout_metric  = 'GoalMetricLookup' && <fs_metas>-layout+4.
@@ -588,7 +646,8 @@ FORM zf_verificar_metas .
 
       LOOP AT t_milestone INTO w_milestone WHERE parent_guid = <fs_metas>-library.
 
-        READ TABLE t_mile ASSIGNING <fs_milestone> WITH KEY guid = w_milestone-guid.
+        READ TABLE t_mile ASSIGNING <fs_milestone> WITH KEY guid   = w_milestone-guid
+                                                            goalid = <fs_metas>-id.
 
         IF sy-subrc NE 0.
           APPEND INITIAL LINE TO t_mile ASSIGNING <fs_milestone>.
@@ -602,6 +661,17 @@ FORM zf_verificar_metas .
         <fs_milestone>-customnum1   = w_milestone-customnum1.
         <fs_milestone>-customnum2   = w_milestone-customnum2.
         <fs_milestone>-customnum3   = w_milestone-customnum3.
+        <fs_milestone>-guid_numc    = w_milestone-guid.
+
+        TRANSLATE <fs_milestone>-customnum1       USING '  '.
+        TRANSLATE <fs_milestone>-customnum2       USING '  '.
+        TRANSLATE <fs_milestone>-customnum3       USING '  '.
+        TRANSLATE <fs_milestone>-actualnumber     USING '  '.
+
+        CONDENSE: <fs_milestone>-actualnumber NO-GAPS,
+                  <fs_milestone>-customnum1   NO-GAPS,
+                  <fs_milestone>-customnum2   NO-GAPS,
+                  <fs_milestone>-customnum3   NO-GAPS.
 
       ENDLOOP.
 
@@ -610,7 +680,7 @@ FORM zf_verificar_metas .
         l_index_metric = sy-tabix.
 
         CLEAR w_metriclookupentry.
-        READ TABLE t_metriclookupentry INTO w_metriclookupentry WITH KEY guid = <fs_metric>-subguid BINARY SEARCH.
+        READ TABLE t_metriclookupentry INTO w_metriclookupentry WITH KEY guid   = <fs_metric>-subguid.
 
         IF sy-subrc NE 0.
 
@@ -625,7 +695,8 @@ FORM zf_verificar_metas .
 
       LOOP AT t_metriclookupentry INTO w_metriclookupentry WHERE parent_guid EQ <fs_metas>-library.
 
-        READ TABLE t_metric ASSIGNING <fs_metric> WITH KEY subguid = w_metriclookupentry-guid.
+        READ TABLE t_metric ASSIGNING <fs_metric> WITH KEY subguid = w_metriclookupentry-guid
+                                                            goalid = <fs_metas>-id.
 
         IF sy-subrc NE 0.
           APPEND INITIAL LINE TO t_metric ASSIGNING <fs_metric>.
@@ -637,6 +708,10 @@ FORM zf_verificar_metas .
         <fs_metric>-rating        = w_metriclookupentry-rating.
         <fs_metric>-achievement   = w_metriclookupentry-achievement.
         <fs_metric>-description   = w_metriclookupentry-description.
+
+        TRANSLATE <fs_metric>-achievement    USING '  '.
+
+        CONDENSE <fs_metric>-achievement NO-GAPS.
 
       ENDLOOP.
 
@@ -650,9 +725,13 @@ FORM zf_verificar_metas .
 
   COMMIT WORK AND WAIT.
 
+  SORT t_mile BY guid_numc.
+
   MODIFY ztbhr_sfvc_metas FROM TABLE t_metas.
   MODIFY ztbhr_sfvc_metri FROM TABLE t_metric.
   MODIFY ztbhr_sfvc_mile  FROM TABLE t_mile.
+
+  COMMIT WORK AND WAIT.
 
 ENDFORM.                    " ZF_VERIFICAR_METAS
 
@@ -861,9 +940,10 @@ FORM zf_atualizar_metas_sf.
     w_sfobject-id     = w_metas-id.
     w_sfobject-data   = t_data[].
 
-    IF w_metas-name IS INITIAL OR
-       w_metas-field_desc IS INITIAL OR
-       w_metas-description IS INITIAL.
+    IF w_metas-name         IS INITIAL OR
+       w_metas-field_desc   IS INITIAL OR
+       w_metas-description  IS INITIAL OR
+       w_metas-metric       IS INITIAL.
     ELSE.
       APPEND w_sfobject TO t_sfobject.
     ENDIF.
@@ -1098,9 +1178,12 @@ FORM zf_login_successfactors  USING    p_empresa
            sessionid TYPE string,
          END OF y_return_login.
 
+  DATA: t_param TYPE zdt_login_request_param_tab.
+
   DATA: w_login             TYPE zmt_login_request,
         w_return_login      TYPE y_return_login,
-        w_credenciais       LIKE LINE OF t_credenciais.
+        w_credenciais       LIKE LINE OF t_credenciais,
+        w_param             LIKE LINE OF t_param.
 
 *  / Seleciona os dados de acesso da empresa
   READ TABLE t_credenciais INTO w_credenciais WITH KEY empresa = p_empresa BINARY SEARCH.
@@ -1113,9 +1196,15 @@ FORM zf_login_successfactors  USING    p_empresa
   PERFORM zf_decode_pass CHANGING w_credenciais-password.
 *  /
 
+  w_param-name  = 'batchSize'.
+  w_param-value = w_credenciais-batchsize.
+  APPEND w_param TO t_param.
+  CLEAR w_param.
+
   w_login-mt_login_request-credential-company_id = w_credenciais-companyid.
   w_login-mt_login_request-credential-username   = w_credenciais-username.
   w_login-mt_login_request-credential-password   = w_credenciais-password.
+  w_login-mt_login_request-param = t_param.
 
   PERFORM zf_login_success_factor(zvcrhr0006_sf_vc) USING w_login
                                                  CHANGING w_return_login.
@@ -1231,17 +1320,19 @@ FORM zf_call_upsert  USING i_entity
         w_sfparam      LIKE LINE OF w_request-mt_operation_request-processing_param,
         t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
         w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
-        w_sfobject_data     LIKE LINE OF w_sfobject-data.
+        w_sfobject_data     LIKE LINE OF w_sfobject-data,
+        l_message           TYPE string.
 
   IF lines( p_sfobject ) <= p_credenciais-batchsize.
     l_count = 1.
   ELSE.
     l_count = lines( p_sfobject ) / p_credenciais-batchsize.
   ENDIF.
-  PERFORM zf_mensagem_progresso USING 'Atualizando ' i_entity.
-
 
   DO l_count TIMES.
+
+    l_message = 'Atualizando -' && i_entity && ' - Lote -' && l_count_tot && ' de -' && l_count.
+    PERFORM zf_mensagem_progresso USING l_message ''.
 
     LOOP AT p_sfobject INTO w_sfobject FROM l_count_tot.
 
@@ -1425,10 +1516,10 @@ FORM zf_query_goal USING p_entity.
   TRY.
 
       CREATE OBJECT l_o_query.
-      l_deleted = text-001 && 'deleted'&& text-001.
+      l_deleted = text-001 && 'deleted' && text-001.
 *      l_goal = '(' && text-001 && 'GOAL-20951' && text-001 && ',' && text-001 && 'GOAL-20952' && text-001 && ',' && text-001 && 'GOAL-20954' && text-001 && ')'.
-      l_goal = '(' && text-001 && 'GOAL-29989' && text-001 && ')'.
-      l_username = text-001 && 'vid_vcnet@paulorlc'&& text-001.
+      l_goal = '(' && text-001 && 'GOAL-2935' && text-001 && ')'.
+      l_username = text-001 && 'vid_vcnet@paulorlc' && text-001.
 
       CONCATENATE 'select id, guid, masterid, modifier, currentOwner, numbering,'
                   'goaltype, flag, parentid, userid, username, status, library,'
@@ -1549,10 +1640,23 @@ FORM zf_query_sfsf.
   PERFORM zf_mensagem_progresso USING 'Selecionando dados do SuccessFactors' ''.
 
 *  PERFORM zf_query_goal USING 'Goal$204'.
-  PERFORM zf_query_goal USING 'Goal$303'.
+
+* Atualizar Bloco Operacional 2015
+  IF p_2015op EQ abap_true.
+    PERFORM zf_query_goal USING 'Goal$303'.
+    PERFORM zf_query_metriclookup USING 'GoalMetricLookup$303'.
+    PERFORM zf_query_milestone USING 'GoalMilestone$303'.
+  ENDIF.
 *  PERFORM zf_query_goal USING 'Goal$305'.
 *  PERFORM zf_query_goal USING 'Goal$306'.
-*  PERFORM zf_query_goal USING 'Goal$403'.
+
+* Atualizar Bloco Economico 2015
+  IF p_2015ec EQ abap_true.
+    PERFORM zf_query_goal USING 'Goal$403'.
+    PERFORM zf_query_metriclookup USING 'GoalMetricLookup$403'.
+    PERFORM zf_query_milestone USING 'GoalMilestone$403'.
+  ENDIF.
+
 *  PERFORM zf_query_goal USING 'Goal$405'.
 *  PERFORM zf_query_goal USING 'Goal$406'.
 *  PERFORM zf_query_goal USING 'Goal$9'.
@@ -1564,10 +1668,10 @@ FORM zf_query_sfsf.
 *  PERFORM zf_query_goal USING 'Goal$16'.
 
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$204'.
-  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$303'.
+
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$305'.
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$306'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$403'.
+
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$405'.
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$406'.
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$9'.
@@ -1579,10 +1683,10 @@ FORM zf_query_sfsf.
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$16'.
 
 *  PERFORM zf_query_milestone USING 'GoalMilestone$204'.
-  PERFORM zf_query_milestone USING 'GoalMilestone$303'.
+
 *  PERFORM zf_query_milestone USING 'GoalMilestone$305'.
 *  PERFORM zf_query_milestone USING 'GoalMilestone$306'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$403'.
+
 *  PERFORM zf_query_milestone USING 'GoalMilestone$405'.
 *  PERFORM zf_query_milestone USING 'GoalMilestone$406'.
 *  PERFORM zf_query_milestone USING 'GoalMilestone$9'.
@@ -1664,8 +1768,8 @@ FORM zf_query_milestone USING p_entity.
 
   TRY.
 
-  data: l_where type string.
-  l_where = 'where goalid = ' && text-001 && 'GOAL-29989' && text-001.
+      DATA: l_where TYPE string.
+*      l_where = 'where goalid = ' && text-001 && 'GOAL-2935' && text-001.
 
       CREATE OBJECT l_o_query.
 
@@ -1674,7 +1778,7 @@ FORM zf_query_milestone USING p_entity.
                   'actualnumber, rating'
                   'from'
                   p_entity
-*                  l_where
+                  l_where
              INTO w_query-query_string SEPARATED BY space.
 
       w_request-mt_query_user_request-query      = w_query.
@@ -1801,7 +1905,8 @@ FORM zf_call_update USING i_entity
         w_sfparam      LIKE LINE OF w_request-mt_operation_request-processing_param,
         t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
         w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
-        w_sfobject_data     LIKE LINE OF w_sfobject-data.
+        w_sfobject_data     LIKE LINE OF w_sfobject-data,
+        l_message           TYPE string.
 
   IF lines( p_sfobject ) <= p_credenciais-batchsize.
     l_count = 1.
@@ -1812,6 +1917,9 @@ FORM zf_call_update USING i_entity
   PERFORM zf_mensagem_progresso USING 'Atualizando ' i_entity.
 
   DO l_count TIMES.
+
+    l_message = 'Atualizando -' && i_entity && ' - Lote -' && l_count_tot && ' de -' && l_count.
+    PERFORM zf_mensagem_progresso USING l_message ''.
 
     LOOP AT p_sfobject INTO w_sfobject FROM l_count_tot.
 
@@ -1983,8 +2091,8 @@ FORM zf_query_metriclookup USING p_entity.
 
   TRY.
 
-  data: l_where type string.
-  l_where = 'where goalid = ' && text-001 && 'GOAL-29989' && text-001.
+      DATA: l_where TYPE string.
+*      l_where = 'where goalid = ' && text-001 && 'GOAL-2935' && text-001.
 
       CREATE OBJECT l_o_query.
 
@@ -1992,7 +2100,7 @@ FORM zf_query_metriclookup USING p_entity.
                   'displayorder, rating, achievement'
                   'from '
                   p_entity
-*                  l_where
+                  l_where
              INTO w_query-query_string SEPARATED BY space.
 
       w_request-mt_query_user_request-query      = w_query.
@@ -2198,3 +2306,37 @@ FORM zf_ajustar_arquivo.
   ENDLOOP.
 
 ENDFORM.                    "zf_ajustar_arquivo
+
+*  &---------------------------------------------------------------------*
+*  &      Form  ZF_GRAVAR_LOG
+*  &---------------------------------------------------------------------*
+FORM zf_gravar_log .
+
+  DATA: t_param TYPE TABLE OF rsparams,
+        w_param TYPE rsparams.
+
+  MODIFY ztbhr_sfsf_log FROM TABLE t_log.
+  COMMIT WORK AND WAIT.
+
+  IF sy-batch IS INITIAL.
+
+    w_param-kind    = 'S'.
+    w_param-option  = 'EQ'.
+    w_param-selname = 'S_IDLOG'.
+    w_param-sign    = 'I'.
+    w_param-low     = v_idlog.
+    APPEND w_param TO t_param.
+    CLEAR w_param.
+
+    SUBMIT zglrhr0157_cockpit_log_factors WITH SELECTION-TABLE t_param.
+
+  ELSE.
+
+    READ TABLE t_log INTO w_log INDEX 1.
+
+    WRITE: /'Lote de processamento gerado de número: ',
+            w_log-idlog.
+
+  ENDIF.
+
+ENDFORM.                    " ZF_GRAVAR_LOG
