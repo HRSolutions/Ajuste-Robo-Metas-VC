@@ -480,6 +480,11 @@ FORM zf_split_dados .
           TRANSLATE w_milestone-actualnumber  USING '  '.
           TRANSLATE w_milestone-actual        USING '  '.
 
+          TRANSLATE w_milestone-customnum1    USING ', '.
+          TRANSLATE w_milestone-customnum2    USING ', '.
+          TRANSLATE w_milestone-customnum3    USING ', '.
+          TRANSLATE w_milestone-actualnumber  USING ', '.
+
           CONDENSE: w_milestone-customnum1    NO-GAPS,
                     w_milestone-customnum2    NO-GAPS,
                     w_milestone-customnum3    NO-GAPS,
@@ -537,11 +542,13 @@ FORM zf_split_dados .
                                              w_metriclookupentry-resto.
 
           TRANSLATE: w_metriclookupentry-achievement USING '§ '.
+          TRANSLATE: w_metriclookupentry-rating      USING '§ '.
           TRANSLATE: w_metriclookupentry-achievement USING '% '.
 
           TRANSLATE: w_metriclookupentry-description USING '§,'.
 
           CONDENSE w_metriclookupentry-achievement NO-GAPS.
+          CONDENSE w_metriclookupentry-rating      NO-GAPS.
 
           APPEND w_metriclookupentry TO t_metriclookupentry.
           CLEAR w_metriclookupentry.
@@ -1142,6 +1149,7 @@ FORM zf_atualizar_mile_sf.
               'customnum3'          w_mile-customnum3,
               'actualnumber'        w_mile-actualnumber,
               'field_desc'          w_mile-field_desc.
+*              'displayOrder'        w_mile-displayOrder.
 
     w_sfobject-entity = w_mile-layout.
     w_sfobject-data   = t_data[].
@@ -1379,17 +1387,17 @@ FORM zf_call_upsert  USING i_entity
 
             ENDIF.
 
-            LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE edit_status NE 'ERROR'.
-
-              IF NOT w_result-id IS INITIAL.
-
-                ADD 1 TO w_result-index.
-                READ TABLE t_sfobject INTO w_sfobject INDEX w_result-index.
-                READ TABLE w_sfobject-data INTO w_sfobject_data WITH KEY key = 'userId'.
-
-              ENDIF.
-
-            ENDLOOP.
+*            LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE edit_status NE 'ERROR'.
+*
+*              IF NOT w_result-id IS INITIAL.
+*
+*                ADD 1 TO w_result-index.
+*                READ TABLE t_sfobject INTO w_sfobject INDEX w_result-index.
+*                READ TABLE w_sfobject-data INTO w_sfobject_data WITH KEY key = 'userId'.
+*
+*              ENDIF.
+*
+*            ENDLOOP.
 
 *              MODIFY ztbhr_sfsf_user FROM TABLE t_ztbhr_sfsf_user.
 
@@ -1518,7 +1526,7 @@ FORM zf_query_goal USING p_entity.
       CREATE OBJECT l_o_query.
       l_deleted = text-001 && 'deleted' && text-001.
 *      l_goal = '(' && text-001 && 'GOAL-20951' && text-001 && ',' && text-001 && 'GOAL-20952' && text-001 && ',' && text-001 && 'GOAL-20954' && text-001 && ')'.
-      l_goal = '(' && text-001 && 'GOAL-2935' && text-001 && ')'.
+*      l_goal = 'and id IN (' && text-001 && 'GOAL-40671' && text-001 && ')'.
       l_username = text-001 && 'vid_vcnet@paulorlc' && text-001.
 
       CONCATENATE 'select id, guid, masterid, modifier, currentOwner, numbering,'
@@ -1529,7 +1537,7 @@ FORM zf_query_goal USING p_entity.
                   p_entity
                   'where status != '
                   l_deleted
-*                  'and id IN' l_goal
+                  l_goal
 *                  'and username =' l_username
              INTO w_query-query_string SEPARATED BY space.
 
@@ -1707,6 +1715,8 @@ FORM zf_query_sfsf.
   MODIFY ztbhr_sfvc_mile  FROM TABLE t_miles_sf.
   MODIFY ztbhr_sfvc_metri  FROM TABLE t_metric_sf.
 
+  COMMIT WORK AND WAIT.
+
 ENDFORM.                    "zf_query_sfsf
 
 *  &---------------------------------------------------------------------*
@@ -1769,7 +1779,7 @@ FORM zf_query_milestone USING p_entity.
   TRY.
 
       DATA: l_where TYPE string.
-*      l_where = 'where goalid = ' && text-001 && 'GOAL-2935' && text-001.
+*      l_where = 'where goalid = ' && text-001 && 'GOAL-40671' && text-001.
 
       CREATE OBJECT l_o_query.
 
@@ -1966,17 +1976,17 @@ FORM zf_call_update USING i_entity
 
             ENDIF.
 
-            LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE edit_status NE 'ERROR'.
-
-              IF NOT w_result-id IS INITIAL.
-
-                ADD 1 TO w_result-index.
-                READ TABLE t_sfobject INTO w_sfobject INDEX w_result-index.
-                READ TABLE w_sfobject-data INTO w_sfobject_data WITH KEY key = 'userId'.
-
-              ENDIF.
-
-            ENDLOOP.
+*            LOOP AT w_response-mt_operation_response-object_edit_result INTO w_result WHERE edit_status NE 'ERROR'.
+*
+*              IF NOT w_result-id IS INITIAL.
+*
+*                ADD 1 TO w_result-index.
+*                READ TABLE t_sfobject INTO w_sfobject INDEX w_result-index.
+*                READ TABLE w_sfobject-data INTO w_sfobject_data WITH KEY key = 'userId'.
+*
+*              ENDIF.
+*
+*            ENDLOOP.
 
 *              MODIFY ztbhr_sfsf_user FROM TABLE t_ztbhr_sfsf_user.
 
@@ -2092,7 +2102,7 @@ FORM zf_query_metriclookup USING p_entity.
   TRY.
 
       DATA: l_where TYPE string.
-*      l_where = 'where goalid = ' && text-001 && 'GOAL-2935' && text-001.
+*      l_where = 'where goalid = ' && text-001 && 'GOAL-40671' && text-001.
 
       CREATE OBJECT l_o_query.
 
@@ -2274,26 +2284,28 @@ FORM zf_ajustar_arquivo.
 
         IF sy-tabix EQ 1.
           l_offset_ini = w_result-offset + 1.
-        ELSE.
+        ELSEIF sy-tabix EQ 2.
           l_offset_fim = w_result-offset + 1.
+
+          l_times = l_offset_fim - l_offset_ini.
+          l_len = l_offset_ini.
+
+          DO l_times TIMES.
+
+            l_texto = w_outdata-coluna+l_len(1).
+            TRANSLATE l_texto USING ',§'.
+            w_outdata-coluna+l_len(1) = l_texto.
+            CLEAR: l_texto.
+            ADD 1 TO l_len.
+
+          ENDDO.
+
+          MODIFY t_outdata FROM w_outdata INDEX l_tabix.
+          DELETE lt_result INDEX 1.
+          DELETE lt_result INDEX 1.
         ENDIF.
 
       ENDLOOP.
-
-      l_times = l_offset_fim - l_offset_ini.
-      l_len = l_offset_ini.
-
-      DO l_times TIMES.
-
-        l_texto = w_outdata-coluna+l_len(1).
-        TRANSLATE l_texto USING ',§'.
-        w_outdata-coluna+l_len(1) = l_texto.
-        CLEAR: l_texto.
-        ADD 1 TO l_len.
-
-      ENDDO.
-
-      MODIFY t_outdata FROM w_outdata INDEX l_tabix.
 
     ENDIF.
 
@@ -2314,6 +2326,8 @@ FORM zf_gravar_log .
 
   DATA: t_param TYPE TABLE OF rsparams,
         w_param TYPE rsparams.
+
+  CHECK NOT t_log[] IS INITIAL.
 
   MODIFY ztbhr_sfsf_log FROM TABLE t_log.
   COMMIT WORK AND WAIT.
