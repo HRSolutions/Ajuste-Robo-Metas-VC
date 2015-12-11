@@ -237,7 +237,8 @@ SELECTION-SCREEN END OF BLOCK b2.
 
 SELECTION-SCREEN BEGIN OF BLOCK b3 WITH FRAME TITLE text-003.
 PARAMETERS:  p_2015op AS CHECKBOX,
-             p_2015ec AS CHECKBOX.
+             p_2015ec AS CHECKBOX,
+             p_2015pp AS CHECKBOX.
 SELECTION-SCREEN END OF BLOCK b3.
 
 SELECTION-SCREEN END OF BLOCK b1.
@@ -929,7 +930,8 @@ FORM zf_atualizar_metas_sf.
 *    ENDIF.
 
     IF w_metas-actual_achieveme IS INITIAL.
-      w_metas-actual_achieveme = '0.00'.
+      w_metas-actual_achieveme = '-999999'.
+      w_metas-rating           = '-999999'.
     ENDIF.
 
     add_data:
@@ -940,6 +942,7 @@ FORM zf_atualizar_metas_sf.
               'field_desc'            w_metas-field_desc,
               'name'                  w_metas-name,
               'actual_achievement'    w_metas-actual_achieveme,
+              'rating'                w_metas-rating,
               'category'              w_metas-category,
               'metric'                w_metas-metric.
 
@@ -1329,7 +1332,8 @@ FORM zf_call_upsert  USING i_entity
         t_ztbhr_sfsf_user   TYPE TABLE OF ztbhr_sfsf_user,
         w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
         w_sfobject_data     LIKE LINE OF w_sfobject-data,
-        l_message           TYPE string.
+        l_message           TYPE string,
+        l_lote_login        TYPE i.
 
   IF lines( p_sfobject ) <= p_credenciais-batchsize.
     l_count = 1.
@@ -1355,9 +1359,13 @@ FORM zf_call_upsert  USING i_entity
       IF l_lote     EQ p_credenciais-batchsize OR
          l_count_tot  EQ lines( p_sfobject ).
 
-        PERFORM zf_login_successfactors USING p_credenciais-empresa
-                                     CHANGING l_sessionid
-                                              l_batchsize.
+        IF l_sessionid IS INITIAL.
+
+          PERFORM zf_login_successfactors USING p_credenciais-empresa
+                                       CHANGING l_sessionid
+                                                l_batchsize.
+
+        ENDIF.
 
         TRY.
 
@@ -1425,6 +1433,13 @@ FORM zf_call_upsert  USING i_entity
                w_sfobject,
                t_sfobject.
 
+        ADD 1 TO l_lote_login.
+
+        IF l_lote_login EQ 30.
+          CLEAR: l_sessionid,
+                 l_lote_login.
+        ENDIF.
+
       ENDIF.
 
     ENDLOOP.
@@ -1462,7 +1477,9 @@ FORM zf_query_goal USING p_entity.
         l_goal              TYPE string,
         l_username          TYPE string,
         l_id                TYPE string,
-        w_goals_id          LIKE LINE OF r_goals_id.
+        w_goals_id          LIKE LINE OF r_goals_id,
+        l_lote_query        TYPE i,
+        l_mensagem          TYPE string.
 
   DEFINE add_internal_table.
 
@@ -1526,7 +1543,7 @@ FORM zf_query_goal USING p_entity.
       CREATE OBJECT l_o_query.
       l_deleted = text-001 && 'deleted' && text-001.
 *      l_goal = '(' && text-001 && 'GOAL-20951' && text-001 && ',' && text-001 && 'GOAL-20952' && text-001 && ',' && text-001 && 'GOAL-20954' && text-001 && ')'.
-*      l_goal = 'and id IN (' && text-001 && 'GOAL-40671' && text-001 && ')'.
+*      l_goal = 'and id IN (' && text-001 && 'GOAL-52456' && text-001 && ')'.
       l_username = text-001 && 'vid_vcnet@paulorlc' && text-001.
 
       CONCATENATE 'select id, guid, masterid, modifier, currentOwner, numbering,'
@@ -1586,6 +1603,10 @@ FORM zf_query_goal USING p_entity.
 
   WHILE l_has_more EQ abap_true.
 
+    ADD 1 TO l_lote_query.
+    l_mensagem = 'Selecionando Lote -' && l_lote_query && ' - Tabela -'.
+    PERFORM zf_mensagem_progresso USING l_mensagem p_entity.
+
     w_request_more-mt_query_more_request-session_id = w_request-mt_query_user_request-session_id.
     w_request_more-mt_query_more_request-query-query_session_id = w_response-mt_query_goal10_response-query_session_id.
 
@@ -1605,17 +1626,23 @@ FORM zf_query_goal USING p_entity.
         l_text = l_o_erro->get_text( ).
         PERFORM zf_log USING space c_error l_text space.
 
+        l_has_more = abap_false.
+
       CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
         PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
 
         l_text = l_o_erro_fault->standard-fault_text.
         PERFORM zf_log USING space c_error l_text space.
 
+        l_has_more = abap_false.
+
       CATCH cx_ai_application_fault INTO l_o_erro_apl.
         PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
 
         l_text = l_o_erro_apl->get_text( ).
         PERFORM zf_log USING space c_error l_text space.
+
+        l_has_more = abap_false.
 
     ENDTRY.
 
@@ -1633,7 +1660,11 @@ FORM zf_query_goal USING p_entity.
 
     ADD 1 TO l_tentativa.
 
+    CLEAR: w_response_more.
+
   ENDWHILE.
+
+  PERFORM zf_logout_successfactors USING l_sessionid.
 */
 
 ENDFORM.                    " ZF_QUERY_GOAL
@@ -1647,26 +1678,43 @@ FORM zf_query_sfsf.
 
   PERFORM zf_mensagem_progresso USING 'Selecionando dados do SuccessFactors' ''.
 
-*  PERFORM zf_query_goal USING 'Goal$204'.
-
 * Atualizar Bloco Operacional 2015
   IF p_2015op EQ abap_true.
-    PERFORM zf_query_goal USING 'Goal$303'.
+    PERFORM zf_query_goal         USING 'Goal$303'.
     PERFORM zf_query_metriclookup USING 'GoalMetricLookup$303'.
-    PERFORM zf_query_milestone USING 'GoalMilestone$303'.
+    PERFORM zf_query_milestone    USING 'GoalMilestone$303'.
+
+    PERFORM zf_query_goal         USING 'Goal$305'.
+    PERFORM zf_query_metriclookup USING 'GoalMetricLookup$305'.
+    PERFORM zf_query_milestone    USING 'GoalMilestone$305'.
+
+    PERFORM zf_query_goal         USING 'Goal$306'.
+    PERFORM zf_query_metriclookup USING 'GoalMetricLookup$306'.
+    PERFORM zf_query_milestone    USING 'GoalMilestone$306'.
   ENDIF.
-*  PERFORM zf_query_goal USING 'Goal$305'.
-*  PERFORM zf_query_goal USING 'Goal$306'.
 
 * Atualizar Bloco Economico 2015
   IF p_2015ec EQ abap_true.
     PERFORM zf_query_goal USING 'Goal$403'.
+    PERFORM zf_query_goal USING 'Goal$405'.
+    PERFORM zf_query_goal USING 'Goal$406'.
+
     PERFORM zf_query_metriclookup USING 'GoalMetricLookup$403'.
+    PERFORM zf_query_metriclookup USING 'GoalMetricLookup$405'.
+    PERFORM zf_query_metriclookup USING 'GoalMetricLookup$406'.
+
     PERFORM zf_query_milestone USING 'GoalMilestone$403'.
+    PERFORM zf_query_milestone USING 'GoalMilestone$405'.
+    PERFORM zf_query_milestone USING 'GoalMilestone$406'.
   ENDIF.
 
-*  PERFORM zf_query_goal USING 'Goal$405'.
-*  PERFORM zf_query_goal USING 'Goal$406'.
+* Atualizar Painel PPR
+  IF p_2015pp EQ abap_true.
+    PERFORM zf_query_goal         USING 'Goal$204'.
+    PERFORM zf_query_metriclookup USING 'GoalMetricLookup$204'.
+    PERFORM zf_query_milestone    USING 'GoalMilestone$204'.
+  ENDIF.
+
 *  PERFORM zf_query_goal USING 'Goal$9'.
 *  PERFORM zf_query_goal USING 'Goal$10'.
 *  PERFORM zf_query_goal USING 'Goal$12'.
@@ -1675,13 +1723,6 @@ FORM zf_query_sfsf.
 *  PERFORM zf_query_goal USING 'Goal$15'.
 *  PERFORM zf_query_goal USING 'Goal$16'.
 
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$204'.
-
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$305'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$306'.
-
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$405'.
-*  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$406'.
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$9'.
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$10'.
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$12'.
@@ -1690,13 +1731,6 @@ FORM zf_query_sfsf.
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$15'.
 *  PERFORM zf_query_metriclookup USING 'GoalMetricLookup$16'.
 
-*  PERFORM zf_query_milestone USING 'GoalMilestone$204'.
-
-*  PERFORM zf_query_milestone USING 'GoalMilestone$305'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$306'.
-
-*  PERFORM zf_query_milestone USING 'GoalMilestone$405'.
-*  PERFORM zf_query_milestone USING 'GoalMilestone$406'.
 *  PERFORM zf_query_milestone USING 'GoalMilestone$9'.
 *  PERFORM zf_query_milestone USING 'GoalMilestone$10'.
 *  PERFORM zf_query_milestone USING 'GoalMilestone$12'.
@@ -1743,7 +1777,9 @@ FORM zf_query_milestone USING p_entity.
         w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
         w_query             LIKE w_request-mt_query_user_request-query,
         w_sfobject          LIKE LINE OF w_response-mt_query_milestone_response-sfobject,
-        l_has_more          TYPE c.
+        l_has_more          TYPE c,
+        l_lote_query        TYPE i,
+        l_mensagem          TYPE string.
 
   DEFINE add_internal_table.
 
@@ -1836,6 +1872,10 @@ FORM zf_query_milestone USING p_entity.
 
   WHILE l_has_more EQ abap_true.
 
+    ADD 1 TO l_lote_query.
+    l_mensagem = 'Selecionando Lote -' && l_lote_query && ' - Tabela -'.
+    PERFORM zf_mensagem_progresso USING l_mensagem p_entity.
+
     w_request_more-mt_query_more_request-session_id = w_request-mt_query_user_request-session_id.
     w_request_more-mt_query_more_request-query-query_session_id = w_response-mt_query_milestone_response-query_session_id.
 
@@ -1855,17 +1895,23 @@ FORM zf_query_milestone USING p_entity.
         l_text = l_o_erro->get_text( ).
         PERFORM zf_log USING space c_error l_text space.
 
+        l_has_more = abap_false.
+
       CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
         PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
 
         l_text = l_o_erro_fault->standard-fault_text.
         PERFORM zf_log USING space c_error l_text space.
 
+        l_has_more = abap_false.
+
       CATCH cx_ai_application_fault INTO l_o_erro_apl.
         PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
 
         l_text = l_o_erro_apl->get_text( ).
         PERFORM zf_log USING space c_error l_text space.
+
+        l_has_more = abap_false.
 
     ENDTRY.
 
@@ -1883,8 +1929,11 @@ FORM zf_query_milestone USING p_entity.
 
     ADD 1 TO l_tentativa.
 
+    CLEAR: w_response_more.
+
   ENDWHILE.
 
+  PERFORM zf_logout_successfactors USING l_sessionid.
 */
 
 ENDFORM.                    " ZF_QUERY_MILESTONE
@@ -2070,7 +2119,9 @@ FORM zf_query_metriclookup USING p_entity.
         w_ztbhr_sfsf_user   TYPE ztbhr_sfsf_user,
         w_query             LIKE w_request-mt_query_user_request-query,
         w_sfobject          LIKE LINE OF w_response-mt_query_metric_lookup_respons-sfobject,
-        l_has_more          TYPE c.
+        l_has_more          TYPE c,
+        l_lote_query        TYPE i,
+        l_mensagem          TYPE string.
 
   DEFINE add_internal_table.
 
@@ -2158,6 +2209,10 @@ FORM zf_query_metriclookup USING p_entity.
 
   WHILE l_has_more EQ abap_true.
 
+    ADD 1 TO l_lote_query.
+    l_mensagem = 'Selecionando Lote -' && l_lote_query && ' - Tabela -'.
+    PERFORM zf_mensagem_progresso USING l_mensagem p_entity.
+
     w_request_more-mt_query_more_request-session_id = w_request-mt_query_user_request-session_id.
     w_request_more-mt_query_more_request-query-query_session_id = w_response-mt_query_metric_lookup_respons-query_session_id.
 
@@ -2177,17 +2232,23 @@ FORM zf_query_metriclookup USING p_entity.
         l_text = l_o_erro->get_text( ).
         PERFORM zf_log USING space c_error l_text space.
 
+        l_has_more = abap_false.
+
       CATCH zsfi_cx_dt_fault INTO l_o_erro_fault.
         PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
 
         l_text = l_o_erro_fault->standard-fault_text.
         PERFORM zf_log USING space c_error l_text space.
 
+        l_has_more = abap_false.
+
       CATCH cx_ai_application_fault INTO l_o_erro_apl.
         PERFORM zf_log USING space c_error 'Erro ao Efetuar QUERY para a Empresa'(020) ''.
 
         l_text = l_o_erro_apl->get_text( ).
         PERFORM zf_log USING space c_error l_text space.
+
+        l_has_more = abap_false.
 
     ENDTRY.
 
@@ -2205,7 +2266,11 @@ FORM zf_query_metriclookup USING p_entity.
 
     ADD 1 TO l_tentativa.
 
+    CLEAR: w_response_more.
+
   ENDWHILE.
+
+  PERFORM zf_logout_successfactors USING l_sessionid.
 */
 
 ENDFORM.                    " zf_query_metriclookup
@@ -2220,40 +2285,40 @@ FORM zf_ajustar_arquivo.
   DATA: w_outdata LIKE LINE OF t_outdata,
         w_old     LIKE LINE OF t_outdata.
 
-  DATA: lv_tabix      TYPE sy-tabix,
-        lv_mod        TYPE c,
-        lv_len        TYPE i.
+  DATA: l_tabix      TYPE sy-tabix,
+        l_mod        TYPE c,
+        l_len        TYPE i.
 
   LOOP AT t_outdata INTO w_outdata.
 
-    lv_len = strlen( w_outdata-coluna ).
+    l_len = strlen( w_outdata-coluna ).
 
     IF  w_outdata-coluna IS INITIAL
-    OR  lv_len LE 5
+    OR  l_len LE 5
     OR  ( w_outdata-coluna(4) NE 'TYPE'
         AND w_outdata-coluna(6) NE 'ACTION'
         AND w_outdata-coluna(6) NE 'HEADER'
         AND w_outdata-coluna(3) NE 'ADD' ).
 
       w_old-coluna = w_old-coluna && cl_abap_char_utilities=>cr_lf && w_outdata-coluna.
-      lv_mod = abap_true.
+      l_mod = abap_true.
 
-      IF lv_tabix IS INITIAL.
-        lv_tabix = sy-tabix - 1.
+      IF l_tabix IS INITIAL.
+        l_tabix = sy-tabix - 1.
       ENDIF.
 
     ELSE.
 
-      IF lv_mod EQ abap_true.
+      IF l_mod EQ abap_true.
 
-        READ TABLE t_outdata INTO w_outdata INDEX lv_tabix.
+        READ TABLE t_outdata INTO w_outdata INDEX l_tabix.
 
         w_outdata-coluna = w_outdata-coluna && w_old-coluna.
-        MODIFY t_outdata FROM w_outdata INDEX lv_tabix.
+        MODIFY t_outdata FROM w_outdata INDEX l_tabix.
 
         CLEAR: w_old,
-               lv_tabix,
-               lv_mod.
+               l_tabix,
+               l_mod.
 
       ENDIF.
 
@@ -2261,14 +2326,12 @@ FORM zf_ajustar_arquivo.
 
   ENDLOOP.
 
-  DATA: lt_result     TYPE match_result_tab,
-        w_result      LIKE LINE OF lt_result,
+  DATA: t_result     TYPE TABLE OF match_result,
+        w_result      LIKE LINE OF t_result,
         l_offset_ini  LIKE w_result-offset,
         l_offset_fim  LIKE w_result-offset,
-        l_len         TYPE sy-index,
         l_times       TYPE sy-index,
-        l_texto(255)  TYPE c,
-        l_tabix       TYPE sy-tabix.
+        l_texto(255)  TYPE c.
 
   FIELD-SYMBOLS: <f_field> TYPE any.
 
@@ -2276,11 +2339,11 @@ FORM zf_ajustar_arquivo.
 
     l_tabix = sy-tabix.
 
-    FIND ALL OCCURRENCES OF '"' IN w_outdata-coluna RESULTS lt_result.
+    FIND ALL OCCURRENCES OF '"' IN w_outdata-coluna RESULTS t_result.
 
     IF sy-subrc EQ 0.
 
-      LOOP AT lt_result INTO w_result.
+      LOOP AT t_result INTO w_result.
 
         IF sy-tabix EQ 1.
           l_offset_ini = w_result-offset + 1.
@@ -2301,15 +2364,15 @@ FORM zf_ajustar_arquivo.
           ENDDO.
 
           MODIFY t_outdata FROM w_outdata INDEX l_tabix.
-          DELETE lt_result INDEX 1.
-          DELETE lt_result INDEX 1.
+          DELETE t_result INDEX 1.
+          DELETE t_result INDEX 1.
         ENDIF.
 
       ENDLOOP.
 
     ENDIF.
 
-    CLEAR: lt_result[],
+    CLEAR: t_result[],
            l_offset_ini,
            l_offset_fim,
            l_len,
@@ -2354,3 +2417,43 @@ FORM zf_gravar_log .
   ENDIF.
 
 ENDFORM.                    " ZF_GRAVAR_LOG
+
+*&---------------------------------------------------------------------*
+*&      Form  zf_logout_successfactors
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->I_SESSIONID  text
+*----------------------------------------------------------------------*
+FORM zf_logout_successfactors USING i_sessionid.
+
+  DATA: w_logout        TYPE zmt_logout_request,
+        w_return_logout TYPE zmt_logout_response.
+
+  DATA: l_o_erro    TYPE REF TO cx_root,
+        l_o_logout  TYPE REF TO zco_si_logout_request.
+
+  TRY.
+      CREATE OBJECT l_o_logout.
+    CATCH cx_ai_system_fault .
+
+  ENDTRY.
+
+* Envia qual sessão deve ser destruída
+  w_logout-mt_logout_request-session_id = i_sessionid.
+
+  TRY.
+
+      CALL METHOD l_o_logout->si_logout_request
+        EXPORTING
+          output = w_logout
+        IMPORTING
+          input  = w_return_logout.
+
+    CATCH cx_ai_system_fault INTO l_o_erro.
+
+    CATCH cx_ai_application_fault INTO l_o_erro.
+
+  ENDTRY.
+
+ENDFORM.                    "zf_logout_successfactors
